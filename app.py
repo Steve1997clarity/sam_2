@@ -9,8 +9,6 @@ from PIL import Image
 import base64
 from io import BytesIO
 import uuid
-from hydra import initialize_config_dir, compose
-from hydra.core.global_hydra import GlobalHydra
 
 sys.path.append('./sam2_repo')
 
@@ -30,22 +28,22 @@ current_model = 'small'  # 默认使用small模型
 MODELS_CONFIG = {
     'tiny': {
         'checkpoint': './models/sam2.1_hiera_tiny.pt',
-        'model_id': 'sam2.1_hiera_t',
+        'config': './sam2_repo/configs/sam2.1/sam2.1_hiera_t.yaml',
         'name': 'Tiny (最快)'
     },
     'small': {
         'checkpoint': './models/sam2.1_hiera_small.pt',
-        'model_id': 'sam2.1_hiera_s',
+        'config': './sam2_repo/configs/sam2.1/sam2.1_hiera_s.yaml',
         'name': 'Small (平衡)'
     },
     'base_plus': {
         'checkpoint': './models/sam2.1_hiera_base_plus.pt',
-        'model_id': 'sam2.1_hiera_b+',
+        'config': './sam2_repo/configs/sam2.1/sam2.1_hiera_b+.yaml',
         'name': 'Base Plus (高精度)'
     },
     'large': {
         'checkpoint': './models/sam2.1_hiera_large.pt',
-        'model_id': 'sam2.1_hiera_l',
+        'config': './sam2_repo/configs/sam2.1/sam2.1_hiera_l.yaml',
         'name': 'Large (最高精度)'
     }
 }
@@ -63,30 +61,24 @@ def init_sam2_model(model_type='small'):
             
         model_config = MODELS_CONFIG[model_type]
         sam2_checkpoint = model_config['checkpoint']
-        model_id = model_config['model_id']
+        model_cfg = model_config['config']
         
         # 检查模型文件是否存在
         if not os.path.exists(sam2_checkpoint):
             print(f"模型文件不存在: {sam2_checkpoint}")
             return False
             
+        # 检查配置文件是否存在
+        if not os.path.exists(model_cfg):
+            print(f"配置文件不存在: {model_cfg}")
+            return False
+            
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"加载模型: {model_config['name']}")
         print(f"使用设备: {device}")
         
-        # 设置 Hydra 配置目录 - 指向包含 YAML 文件的具体目录
-        config_dir = os.path.abspath("./sam2_repo/configs/sam2.1")
-        
-        # 清除已有的 Hydra 实例
-        if GlobalHydra().is_initialized():
-            GlobalHydra.instance().clear()
-        
-        # 初始化 Hydra 配置
-        with initialize_config_dir(config_dir=config_dir, version_base=None):
-            # 使用模型ID加载配置
-            cfg = compose(config_name=model_id)
-            sam2_model = build_sam2(cfg, sam2_checkpoint, device=device)
-            
+        # 简单直接的方式，就像初版那样
+        sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=device)
         predictor = SAM2ImagePredictor(sam2_model)
         current_model = model_type
         print(f"SAM 2模型加载成功: {model_config['name']}")
@@ -461,14 +453,15 @@ def get_models():
         for model_type, config in MODELS_CONFIG.items():
             # 检查模型文件是否存在
             model_exists = os.path.exists(config['checkpoint'])
+            config_exists = os.path.exists(config['config'])
             
             models.append({
                 'type': model_type,
                 'name': config['name'],
-                'available': model_exists,
+                'available': model_exists and config_exists,
                 'current': model_type == current_model,
                 'checkpoint_path': config['checkpoint'],
-                'model_id': config['model_id']
+                'config_path': config['config']
             })
         
         return jsonify({
