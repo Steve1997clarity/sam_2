@@ -165,23 +165,33 @@ class AdvancedSAM2Interface {
     
     async uploadImage(file) {
         this.showLoading(true);
-        this.updateUploadStatus('正在上传图片...');
-        
-        const formData = new FormData();
-        formData.append('image', file);
+        this.updateUploadStatus('正在处理图片...');
         
         try {
+            // 第一步：在前端处理图片，确保方向和尺寸正确
+            const processedImageData = await this.processImageFile(file);
+            
+            this.updateUploadStatus('正在上传图片...');
+            
+            // 第二步：将处理后的图片发送给后端
             const response = await fetch('/upload', {
                 method: 'POST',
-                body: formData
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    image_data: processedImageData.dataUrl,
+                    width: processedImageData.width,
+                    height: processedImageData.height
+                })
             });
             
             const result = await response.json();
             
             if (result.success) {
-                this.imageData = result.image_data;
-                this.imageWidth = result.width;
-                this.imageHeight = result.height;
+                this.imageData = processedImageData.dataUrl;
+                this.imageWidth = processedImageData.width;
+                this.imageHeight = processedImageData.height;
                 this.sessionId = result.session_id;
                 
                 await this.displayImage();
@@ -205,6 +215,50 @@ class AdvancedSAM2Interface {
         } finally {
             this.showLoading(false);
         }
+    }
+    
+    async processImageFile(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                const img = new Image();
+                
+                img.onload = () => {
+                    // 创建 canvas 来处理图片
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    // 设置 canvas 尺寸为图片实际尺寸
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    
+                    // 绘制图片到 canvas（浏览器会自动处理 EXIF 方向）
+                    ctx.drawImage(img, 0, 0);
+                    
+                    // 获取处理后的图片数据
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                    
+                    resolve({
+                        dataUrl: dataUrl,
+                        width: canvas.width,
+                        height: canvas.height
+                    });
+                };
+                
+                img.onerror = () => {
+                    reject(new Error('图片加载失败'));
+                };
+                
+                img.src = e.target.result;
+            };
+            
+            reader.onerror = () => {
+                reject(new Error('文件读取失败'));
+            };
+            
+            reader.readAsDataURL(file);
+        });
     }
     
     async displayImage() {

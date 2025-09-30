@@ -129,36 +129,42 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload_image():
-    """处理图片上传"""
+    """处理图片上传 - 接收前端处理后的base64图片"""
     global predictor
     
-    if 'image' not in request.files:
-        return jsonify({'error': '没有选择文件'}), 400
-    
-    file = request.files['image']
-    if file.filename == '':
-        return jsonify({'error': '没有选择文件'}), 400
-    
     try:
+        data = request.get_json()
+        if not data or 'image_data' not in data:
+            return jsonify({'error': '没有图片数据'}), 400
+        
         session_id = get_session_id()
         init_session(session_id)
         
-        # 确保 uploads 目录存在，使用绝对路径
+        # 解析base64图片数据
+        image_data = data['image_data']
+        width = data['width']
+        height = data['height']
+        
+        # 移除data:image/jpeg;base64,前缀
+        if image_data.startswith('data:image'):
+            image_data = image_data.split(',')[1]
+        
+        # 解码base64数据
+        image_bytes = base64.b64decode(image_data)
+        
+        # 确保 uploads 目录存在
         upload_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
         os.makedirs(upload_dir, exist_ok=True)
         
-        # 保存上传的文件
-        filename = str(uuid.uuid4()) + '.' + file.filename.rsplit('.', 1)[1].lower()
+        # 保存图片文件
+        filename = str(uuid.uuid4()) + '.jpg'
         file_path = os.path.join(upload_dir, filename)
         
-        print(f"保存文件到: {file_path}")
-        file.save(file_path)
+        with open(file_path, 'wb') as f:
+            f.write(image_bytes)
         
-        # 验证文件是否保存成功
-        if not os.path.exists(file_path):
-            raise Exception(f"文件保存失败: {file_path}")
-        
-        print(f"文件保存成功，大小: {os.path.getsize(file_path)} bytes")
+        print(f"保存处理后图片到: {file_path}")
+        print(f"图片尺寸: {width}x{height}")
         
         # 加载图像
         image = Image.open(file_path)
@@ -179,17 +185,10 @@ def upload_image():
         if predictor:
             predictor.set_image(image_np)
         
-        # 返回图片的base64编码用于前端显示
-        buffered = BytesIO()
-        image.save(buffered, format="JPEG")
-        img_str = base64.b64encode(buffered.getvalue()).decode()
-        
         return jsonify({
             'success': True,
-            'image_data': f'data:image/jpeg;base64,{img_str}',
-            'width': image.width,
-            'height': image.height,
-            'session_id': session_id
+            'session_id': session_id,
+            'message': '图片处理成功'
         })
         
     except Exception as e:
@@ -495,6 +494,6 @@ if __name__ == '__main__':
     print("正在初始化SAM 2模型...")
     if init_sam2_model():
         print("启动Flask应用...")
-        app.run(debug=True, host='0.0.0.0', port=5111)
+        app.run(debug=True, host='0.0.0.0', port=3000)
     else:
         print("模型初始化失败，请检查模型文件")
