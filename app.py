@@ -387,7 +387,8 @@ def segment_with_points():
         # 合并所有mask
         combined_mask = np.zeros_like(image_np[:,:,0], dtype=bool)
         for mask in all_masks:
-            combined_mask = combined_mask | mask
+            # 使用 logical_or 确保类型安全
+            combined_mask = np.logical_or(combined_mask, mask)
         
         print(f"合并后的mask覆盖像素数: {np.sum(combined_mask)}")
         
