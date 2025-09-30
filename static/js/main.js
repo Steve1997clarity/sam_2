@@ -230,9 +230,9 @@ class SAM2Interface {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         
-        // 转换为原图坐标（使用canvas实际尺寸而不是CSS尺寸）
-        const scaleX = this.imageWidth / this.canvas.width;
-        const scaleY = this.imageHeight / this.canvas.height;
+        // 转换为原图坐标（使用CSS渲染尺寸）
+        const scaleX = this.imageWidth / rect.width;
+        const scaleY = this.imageHeight / rect.height;
         
         const point = {
             x: Math.round(x * scaleX),
@@ -250,15 +250,11 @@ class SAM2Interface {
         // 清除旧的点
         this.overlay.innerHTML = '';
         
-        // 计算显示缩放比例（从原图坐标到canvas显示坐标）
-        const displayScaleX = this.canvas.width / this.imageWidth;
-        const displayScaleY = this.canvas.height / this.imageHeight;
-        
         this.points.forEach((point, index) => {
             const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            // 使用原图坐标转换为显示坐标，确保精确对应
-            circle.setAttribute('cx', point.x * displayScaleX);
-            circle.setAttribute('cy', point.y * displayScaleY);
+            // 直接使用保存的显示坐标
+            circle.setAttribute('cx', point.displayX);
+            circle.setAttribute('cy', point.displayY);
             circle.setAttribute('r', '8');
             circle.setAttribute('fill', '#00ff00');
             circle.setAttribute('stroke', '#008000');
