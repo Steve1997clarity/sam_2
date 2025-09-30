@@ -1,17 +1,19 @@
-class SAM2AutoSegmentation {
+class SAM2PointSegmentation {
     constructor() {
         this.imageCanvas = document.getElementById('imageCanvas');
         this.overlayCanvas = document.getElementById('overlayCanvas');
         this.ctx = this.imageCanvas.getContext('2d');
         
-        this.imageData = null;
+        this.originalImageData = null;
+        this.resultImageData = null;
         this.imageWidth = 0;
         this.imageHeight = 0;
         this.sessionId = null;
         
-        // 存储状态
-        this.masks = [];
-        this.selectedMasks = new Set();
+        // 点收集状态
+        this.selectedPoints = [];
+        this.maxPoints = 5;
+        this.isCollectingPoints = false;
         
         // 加载状态管理
         this.imageProcessing = document.getElementById('imageProcessing');
@@ -185,20 +187,21 @@ class SAM2AutoSegmentation {
             const result = await response.json();
             
             if (result.success) {
-                this.originalImageData = processedImageData.dataUrl;
-                this.overlayImageData = result.overlay_image;
+                this.originalImageData = result.original_image;
                 this.imageWidth = processedImageData.width;
                 this.imageHeight = processedImageData.height;
                 this.sessionId = result.session_id;
-                this.maskCount = result.mask_count;
                 
-                await this.displayOverlayImage();
+                await this.displayOriginalImage();
                 this.showImageContainer(true);
                 this.updateUploadStatus(result.message);
                 this.updateImageDimensions(`${this.imageWidth} × ${this.imageHeight}`);
                 
-                // 添加点击事件
-                this.initClickEvents();
+                // 重置状态并开始收集点
+                this.selectedPoints = [];
+                this.isCollectingPoints = true;
+                this.initPointCollection();
+                this.updatePointsDisplay();
                 
             } else {
                 this.updateUploadStatus(`错误: ${result.error}`);
@@ -317,175 +320,11 @@ class SAM2AutoSegmentation {
         return { x: clampedX, y: clampedY };
     }
     
-    async handleMaskClick(x, y) {
-        try {
-            this.showImageProcessing('正在处理...');
-            
-            const response = await fetch('/click_mask', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ x, y })
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                // 更新显示的图片
-                this.overlayImageData = result.overlay_image;
-                await this.displayOverlayImage();
-                
-                console.log(`点击了mask ${result.clicked_mask}, 已选中 ${result.selected_count} 个区域`);
-            } else {
-                console.log(result.message || '没有点击到区域');
-            }
-        } catch (error) {
-            console.error('点击处理失败:', error);
-        } finally {
-            this.hideImageProcessing();
-        }
-    }
     
-    displayMasks() {
-        this.clearAllContours();
-        
-        if (!this.masks || this.masks.length === 0) return;
-        
-        const scaleX = this.imageCanvas.width / this.imageWidth;
-        const scaleY = this.imageCanvas.height / this.imageHeight;
-        
-        // 为每个mask分配颜色
-        const colors = [
-            '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff',
-            '#00ffff', '#ff8000', '#8000ff', '#0080ff', '#ff0080'
-        ];
-        
-        this.masks.forEach((mask, index) => {
-            const color = colors[index % colors.length];
-            const isSelected = this.selectedMasks.has(mask.id);
-            
-            mask.contours.forEach(contour => {
-                if (contour.length < 3) return;
-                
-                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                
-                let pathData = '';
-                contour.forEach((point, i) => {
-                    const x = point[0] * scaleX;
-                    const y = point[1] * scaleY;
-                    
-                    if (i === 0) {
-                        pathData += `M ${x} ${y}`;
-                    } else {
-                        pathData += ` L ${x} ${y}`;
-                    }
-                });
-                pathData += ' Z';
-                
-                path.setAttribute('d', pathData);
-                path.setAttribute('class', 'mask-contour');
-                path.setAttribute('data-mask-id', mask.id);
-                path.setAttribute('fill', isSelected ? color : 'rgba(128,128,128,0.3)');
-                path.setAttribute('stroke', color);
-                path.setAttribute('stroke-width', isSelected ? '3' : '1');
-                path.setAttribute('cursor', 'pointer');
-                
-                // 添加点击事件
-                path.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.toggleMaskSelection(mask.id);
-                });
-                
-                this.overlayCanvas.appendChild(path);
-            });
-        });
-    }
     
-    toggleMaskSelection(maskId) {
-        if (this.selectedMasks.has(maskId)) {
-            this.selectedMasks.delete(maskId);
-        } else {
-            this.selectedMasks.add(maskId);
-        }
-        
-        this.displayMasks();
-        this.updateMasksList();
-    }
     
-    updateMasksList() {
-        // 更新mask列表UI（稍后实现）
-        console.log('选中的mask:', Array.from(this.selectedMasks));
-    }
     
-    async mergeMasks() {
-        if (this.selectedMasks.size === 0) {
-            alert('请先选择要合并的区域');
-            return;
-        }
-        
-        try {
-            this.showImageProcessing('正在合并区域...');
-            
-            const response = await fetch('/merge_masks', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    mask_ids: Array.from(this.selectedMasks)
-                })
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                // 显示合并结果
-                this.displayMergedMask(result.merged_mask);
-                alert(`成功合并 ${result.merged_mask.count} 个区域`);
-            } else {
-                alert(`合并失败: ${result.error}`);
-            }
-        } catch (error) {
-            console.error('合并错误:', error);
-            alert('合并失败，请重试');
-        } finally {
-            this.hideImageProcessing();
-        }
-    }
     
-    displayMergedMask(mergedMask) {
-        this.clearAllContours();
-        
-        const scaleX = this.imageCanvas.width / this.imageWidth;
-        const scaleY = this.imageCanvas.height / this.imageHeight;
-        
-        mergedMask.contours.forEach(contour => {
-            if (contour.length < 3) return;
-            
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            
-            let pathData = '';
-            contour.forEach((point, i) => {
-                const x = point[0] * scaleX;
-                const y = point[1] * scaleY;
-                
-                if (i === 0) {
-                    pathData += `M ${x} ${y}`;
-                } else {
-                    pathData += ` L ${x} ${y}`;
-                }
-            });
-            pathData += ' Z';
-            
-            path.setAttribute('d', pathData);
-            path.setAttribute('fill', 'rgba(0, 255, 0, 0.5)');
-            path.setAttribute('stroke', '#00ff00');
-            path.setAttribute('stroke-width', '3');
-            
-            this.overlayCanvas.appendChild(path);
-        });
-    }
     
     // 统一的坐标获取方法
     getEventCoordinates(e) {
@@ -616,7 +455,7 @@ class SAM2AutoSegmentation {
     }
     
     async handlePointerMove(e) {
-        if (this.currentMode !== 'hover' || !this.sessionId) return;
+        if (this.currentMode !== 'hover' || !this.sessionId || !this.isCollectingPoints) return;
         
         const coords = this.getEventCoordinates(e);
         
@@ -635,7 +474,6 @@ class SAM2AutoSegmentation {
         // 节流处理
         if (this.hoverTimeout) {
             clearTimeout(this.hoverTimeout);
-            // 如果上一个请求还在进行中，不要隐藏加载状态
         }
         
         // 清除之前的悬浮效果
@@ -716,41 +554,6 @@ class SAM2AutoSegmentation {
         }
     }
     
-    async predictMultiMasks() {
-        if (this.points.length === 0) {
-            this.clearAllContours();
-            this.currentMask = null;
-            this.updateMaskDisplay();
-            return;
-        }
-        
-        try {
-            // 显示加载状态
-            this.showImageProcessing('正在生成分割结果...');
-            
-            const response = await fetch('/predict_multi', {
-                method: 'POST'
-            });
-            
-            const result = await response.json();
-            
-            // 隐藏加载状态
-            this.hideImageProcessing();
-            
-            if (result.success && result.mask) {
-                this.currentMask = result.mask;
-                this.renderMask();
-                this.updateMaskDisplay();
-            } else {
-                this.currentMask = null;
-                this.clearAllContours();
-                this.updateMaskDisplay();
-            }
-        } catch (error) {
-            console.error('mask预测失败:', error);
-            this.hideImageProcessing();
-        }
-    }
     
     renderHoverContours(contours) {
         this.clearHoverContours();
@@ -789,113 +592,9 @@ class SAM2AutoSegmentation {
         });
     }
     
-    renderMask() {
-        this.clearAllContours();
-        
-        // 渲染当前mask
-        if (!this.currentMask || !this.currentMask.contours) {
-            this.renderPoints();
-            return;
-        }
-        
-        const scaleX = this.imageCanvas.width / this.imageWidth;
-        const scaleY = this.imageCanvas.height / this.imageHeight;
-        
-        this.currentMask.contours.forEach((contour) => {
-            if (contour.length < 3) return;
-            
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            
-            let pathData = '';
-            contour.forEach((point, i) => {
-                const x = point[0] * scaleX;
-                const y = point[1] * scaleY;
-                
-                if (i === 0) {
-                    pathData += `M ${x} ${y}`;
-                } else {
-                    pathData += ` L ${x} ${y}`;
-                }
-            });
-            pathData += ' Z';
-            
-            path.setAttribute('d', pathData);
-            path.setAttribute('class', 'selected-mask-contour');
-            
-            // 统一使用蓝色系配色
-            path.setAttribute('fill', 'rgba(0, 123, 255, 0.3)');
-            path.setAttribute('stroke', '#007bff');
-            path.setAttribute('stroke-width', '2');
-            
-            this.overlayCanvas.appendChild(path);
-        });
-        
-        // 渲染点
-        this.renderPoints();
-    }
-    
-    renderPoints() {
-        // 清除旧的点
-        this.overlayCanvas.querySelectorAll('.point-marker').forEach(el => el.remove());
-        
-        const scaleX = this.imageCanvas.width / this.imageWidth;
-        const scaleY = this.imageCanvas.height / this.imageHeight;
-        
-        this.points.forEach((point) => {
-            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            
-            circle.setAttribute('cx', point.x * scaleX);
-            circle.setAttribute('cy', point.y * scaleY);
-            circle.setAttribute('r', '6');
-            circle.setAttribute('class', 'point-marker');
-            circle.setAttribute('data-point-id', point.id);
-            
-            if (point.label === 1) {
-                circle.setAttribute('fill', '#00ff00');
-                circle.setAttribute('stroke', '#008000');
-            } else {
-                circle.setAttribute('fill', '#ff0000');
-                circle.setAttribute('stroke', '#800000');
-            }
-            circle.setAttribute('stroke-width', '2');
-            
-            // 添加点击事件移除点
-            circle.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.removePoint(point.id);
-            });
-            
-            this.overlayCanvas.appendChild(circle);
-        });
-    }
     
     
-    async removePoint(pointId) {
-        try {
-            const response = await fetch('/remove_point', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ point_id: pointId })
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                // 更新本地点列表
-                this.points = this.points.filter(p => p.id !== pointId);
-                this.updatePointsDisplay();
-                
-                // 重新预测
-                if (this.currentMode === 'click') {
-                    await this.predictMultiMasks();
-                }
-            }
-        } catch (error) {
-            console.error('移除点失败:', error);
-        }
-    }
+    
     
     async clearAllPoints() {
         try {
@@ -933,40 +632,20 @@ class SAM2AutoSegmentation {
     }
     
     async exportSelectedMasks() {
-        if (!this.currentMask) {
-            alert('没有可导出的mask');
+        if (!this.resultImageData) {
+            alert('没有可导出的分割结果');
             return;
         }
         
         try {
-            // 显示加载状态
-            this.showImageProcessing('正在导出...');
-            
-            const response = await fetch('/export_masks', {
-                method: 'POST'
-            });
-            
-            const result = await response.json();
-            
-            // 隐藏加载状态
-            this.hideImageProcessing();
-            
-            if (result.success) {
-                // 创建下载链接（这里简化实现，实际可以生成PNG文件）
-                const dataStr = JSON.stringify(this.currentMask.contours);
-                const dataBlob = new Blob([dataStr], {type: 'application/json'});
-                const url = URL.createObjectURL(dataBlob);
-                
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `sam2_mask.json`;
-                link.click();
-                
-                URL.revokeObjectURL(url);
-            }
+            // 创建下载链接
+            const link = document.createElement('a');
+            link.href = this.resultImageData;
+            link.download = `sam2_segmentation_result.jpg`;
+            link.click();
         } catch (error) {
             console.error('导出失败:', error);
-            this.hideImageProcessing();
+            alert('导出失败，请重试');
         }
     }
     
@@ -998,11 +677,7 @@ class SAM2AutoSegmentation {
     }
     
     updateMaskDisplay() {
-        const hasValidMask = this.currentMask && this.currentMask.contours && this.currentMask.contours.length > 0;
-        const maskText = hasValidMask ? 
-            `1 (Score: ${this.currentMask.score.toFixed(3)})` : 
-            '0';
-        
+        const maskText = this.isCollectingPoints ? '0' : (this.resultImageData ? '1' : '0');
         document.getElementById('masksCount').textContent = maskText;
     }
     
@@ -1147,16 +822,17 @@ class SAM2AutoSegmentation {
     
     clearCurrentSession() {
         // 清空所有状态
-        this.points = [];
-        this.currentMask = null;
+        this.selectedPoints = [];
+        this.isCollectingPoints = false;
         this.sessionId = null;
+        this.originalImageData = null;
+        this.resultImageData = null;
         
         // 清空画布
         this.clearAllContours();
         
         // 更新显示
         this.updatePointsDisplay();
-        this.updateMaskDisplay();
         
         // 隐藏图片容器
         this.showImageContainer(false);
@@ -1164,6 +840,12 @@ class SAM2AutoSegmentation {
         // 重置上传状态
         this.updateUploadStatus('');
         document.getElementById('imageInput').value = '';
+        
+        // 隐藏按钮
+        const startBtn = document.getElementById('startSegmentBtn');
+        if (startBtn) startBtn.style.display = 'none';
+        const restartBtn = document.getElementById('restartBtn');
+        if (restartBtn) restartBtn.style.display = 'none';
     }
     
     showMessage(message, type = 'info') {
@@ -1202,15 +884,7 @@ class SAM2AutoSegmentation {
 
 // 初始化应用
 document.addEventListener('DOMContentLoaded', () => {
-    const app = new SAM2AutoSegmentation();
-    
-    // 绑定合并按钮事件
-    const mergeBtn = document.getElementById('mergeBtn');
-    if (mergeBtn) {
-        mergeBtn.addEventListener('click', () => {
-            app.mergeMasks();
-        });
-    }
+    const app = new SAM2PointSegmentation();
     
     // 检查服务器状态
     fetch('/health')

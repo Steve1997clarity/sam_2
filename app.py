@@ -229,57 +229,20 @@ def upload_image():
         sessions[session_id]['selected_masks'] = set()
         sessions[session_id]['mask_segmentations'] = []
         
-        # 自动生成所有mask
-        print("开始自动分割...")
-        masks = mask_generator.generate(image_np)
+        # 设置图像到预测器，准备接收点击
+        if predictor:
+            predictor.set_image(image_np)
         
-        # 按面积排序，取前10个
-        masks_with_area = []
-        mask_segmentations = []
-        
-        for i, mask_info in enumerate(masks):
-            mask = mask_info['segmentation']
-            area = mask_info['area']
-            contours = extract_contours(mask)
-            
-            if contours:  # 只保留有效轮廓的mask
-                masks_with_area.append({
-                    'id': i,
-                    'area': area,
-                    'contours': contours,
-                    'score': mask_info.get('stability_score', 0.0)
-                })
-                mask_segmentations.append(mask)
-        
-        # 按面积排序，取前10个
-        sorted_indices = sorted(range(len(masks_with_area)), key=lambda i: masks_with_area[i]['area'], reverse=True)[:10]
-        
-        top_masks = [masks_with_area[i] for i in sorted_indices]
-        top_segmentations = [mask_segmentations[i] for i in sorted_indices]
-        
-        # 重新分配ID
-        for i, mask in enumerate(top_masks):
-            mask['id'] = i
-        
-        sessions[session_id]['masks'] = top_masks
-        sessions[session_id]['mask_segmentations'] = top_segmentations
-        print(f"生成了 {len(top_masks)} 个mask")
-        
-        # 生成初始渲染图
-        overlay_image = generate_mask_overlay(image_np, top_masks, top_segmentations, set())
-        
-        # 转换为base64
-        overlay_pil = Image.fromarray(overlay_image)
+        # 返回原图的base64用于前端显示和点击
         buffered = BytesIO()
-        overlay_pil.save(buffered, format="JPEG")
-        overlay_b64 = base64.b64encode(buffered.getvalue()).decode()
+        image.save(buffered, format="JPEG")
+        img_b64 = base64.b64encode(buffered.getvalue()).decode()
         
         return jsonify({
             'success': True,
             'session_id': session_id,
-            'overlay_image': f'data:image/jpeg;base64,{overlay_b64}',
-            'mask_count': len(top_masks),
-            'message': f'自动分割完成，生成了{len(top_masks)}个区域'
+            'original_image': f'data:image/jpeg;base64,{img_b64}',
+            'message': '图片上传成功，请点击选择感兴趣的区域（最多5个点）'
         })
         
     except Exception as e:
@@ -379,6 +342,85 @@ def click_mask():
             
     except Exception as e:
         return jsonify({'error': f'点击处理失败: {str(e)}'}), 500
+
+@app.route('/segment_with_points', methods=['POST'])
+def segment_with_points():
+    """基于用户选择的点进行分割"""
+    global predictor
+    
+    try:
+        session_id = get_session_id()
+        if session_id not in sessions:
+            return jsonify({'error': '会话不存在'}), 400
+            
+        data = request.get_json()
+        points = data.get('points', [])
+        
+        if not points:
+            return jsonify({'error': '没有选择点'}), 400
+            
+        if len(points) > 5:
+            return jsonify({'error': '最多只能选择5个点'}), 400
+        
+        image_np = sessions[session_id]['image']
+        
+        print(f"开始基于 {len(points)} 个点进行分割...")
+        
+        # 对每个点生成mask
+        all_masks = []
+        for i, point in enumerate(points):
+            x, y = int(point['x']), int(point['y'])
+            print(f"处理点 {i+1}: ({x}, {y})")
+            
+            masks, scores, _ = predictor.predict(
+                point_coords=np.array([[x, y]]),
+                point_labels=np.array([1]),
+                multimask_output=False
+            )
+            
+            if len(masks) > 0:
+                all_masks.append(masks[0])
+        
+        if not all_masks:
+            return jsonify({'error': '未能生成任何分割结果'}), 400
+        
+        # 合并所有mask
+        combined_mask = np.zeros_like(image_np[:,:,0], dtype=bool)
+        for mask in all_masks:
+            combined_mask = combined_mask | mask
+        
+        print(f"合并后的mask覆盖像素数: {np.sum(combined_mask)}")
+        
+        # 生成白色叠加渲染图
+        overlay = image_np.copy().astype(np.float32)
+        white_color = np.array([255, 255, 255])
+        
+        # 将mask区域变为白色（半透明叠加）
+        overlay[combined_mask] = overlay[combined_mask] * 0.5 + white_color * 0.5
+        
+        # 转换回uint8
+        overlay = overlay.astype(np.uint8)
+        
+        # 转换为base64
+        overlay_pil = Image.fromarray(overlay)
+        buffered = BytesIO()
+        overlay_pil.save(buffered, format="JPEG")
+        overlay_b64 = base64.b64encode(buffered.getvalue()).decode()
+        
+        # 存储结果
+        sessions[session_id]['final_mask'] = combined_mask
+        
+        return jsonify({
+            'success': True,
+            'result_image': f'data:image/jpeg;base64,{overlay_b64}',
+            'points_count': len(points),
+            'mask_area': int(np.sum(combined_mask)),
+            'message': f'基于{len(points)}个点的分割完成'
+        })
+        
+    except Exception as e:
+        print(f"分割错误: {e}")
+        return jsonify({'error': f'分割失败: {str(e)}'}), 500
 
 @app.route('/add_point', methods=['POST'])
 def add_point():
