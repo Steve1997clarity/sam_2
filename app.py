@@ -396,8 +396,8 @@ def segment_with_points():
         overlay = image_np.copy().astype(np.float32)
         white_color = np.array([255, 255, 255])
         
-        # 将mask区域变为白色（半透明叠加）
-        overlay[combined_mask] = overlay[combined_mask] * 0.5 + white_color * 0.5
+        # 将mask区域变为白色（更明显的白色叠加：80%白色 + 20%原图）
+        overlay[combined_mask] = overlay[combined_mask] * 0.2 + white_color * 0.8
         
         # 转换回uint8
         overlay = overlay.astype(np.uint8)

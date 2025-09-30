@@ -27,6 +27,12 @@ class SAM2Interface {
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = 'image/*';
+            
+            // 为移动设备添加 capture 属性以优化拍照体验
+            if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+                input.setAttribute('capture', 'environment');
+            }
+            
             input.onchange = (e) => this.uploadImage(e.target.files[0]);
             input.click();
         });
@@ -42,6 +48,15 @@ class SAM2Interface {
     
     async uploadImage(file) {
         if (!file) return;
+        
+        // 检查文件大小（限制在15MB）
+        const maxFileSize = 15 * 1024 * 1024; // 15MB
+        if (file.size > maxFileSize) {
+            this.updateStatus('图片文件太大，请选择小于15MB的图片');
+            return;
+        }
+        
+        console.log('开始上传:', file.name, '大小:', (file.size / 1024 / 1024).toFixed(2) + 'MB');
         
         this.showLoading(true);
         this.updateStatus('正在处理图片...');
@@ -79,14 +94,17 @@ class SAM2Interface {
                 this.updateStatus(`错误: ${result.error}`);
             }
         } catch (error) {
-            console.error('上传错误:', error);
-            this.updateStatus('上传失败，请重试');
+            console.error('上传错误详情:', error);
+            console.error('错误堆栈:', error.stack);
+            this.updateStatus('上传失败: ' + error.message);
         } finally {
             this.showLoading(false);
         }
     }
     
     async processImageFile(file) {
+        console.log('处理文件:', file.name, '大小:', (file.size / 1024 / 1024).toFixed(2) + 'MB', '类型:', file.type);
+        
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -95,20 +113,45 @@ class SAM2Interface {
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
                     
-                    canvas.width = img.naturalWidth;
-                    canvas.height = img.naturalHeight;
-                    ctx.drawImage(img, 0, 0);
+                    // 限制最大尺寸为 2048x2048
+                    const maxSize = 2048;
+                    let width = img.naturalWidth;
+                    let height = img.naturalHeight;
+                    
+                    console.log('原始图片尺寸:', width, 'x', height);
+                    
+                    // 如果图片太大，进行缩放
+                    if (width > maxSize || height > maxSize) {
+                        const ratio = Math.min(maxSize / width, maxSize / height);
+                        width = Math.round(width * ratio);
+                        height = Math.round(height * ratio);
+                        console.log('图片缩放至:', width, 'x', height);
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // 压缩质量调低到0.7
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                    console.log('处理后图片大小:', (dataUrl.length * 0.75 / 1024 / 1024).toFixed(2) + 'MB');
                     
                     resolve({
-                        dataUrl: canvas.toDataURL('image/jpeg', 0.9),
-                        width: canvas.width,
-                        height: canvas.height
+                        dataUrl: dataUrl,
+                        width: width,
+                        height: height
                     });
                 };
-                img.onerror = () => reject(new Error('图片加载失败'));
+                img.onerror = (err) => {
+                    console.error('图片加载失败:', err);
+                    reject(new Error('图片加载失败'));
+                };
                 img.src = e.target.result;
             };
-            reader.onerror = () => reject(new Error('文件读取失败'));
+            reader.onerror = (err) => {
+                console.error('文件读取失败:', err);
+                reject(new Error('文件读取失败'));
+            };
             reader.readAsDataURL(file);
         });
     }
