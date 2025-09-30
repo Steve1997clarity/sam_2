@@ -21,9 +21,9 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.secret_key = 'sam2_interactive_segmentation_key'
 
-# 全局变量
-predictor = None
-mask_generator = None
+# 全局变量 - 预加载所有模型
+predictors = {}  # 存储所有预加载的predictor
+mask_generators = {}  # 存储所有预加载的mask_generator
 current_model = 'small'  # 默认使用small模型
 
 # 模型配置 - 使用初版的路径结构
@@ -87,39 +87,56 @@ EXAMPLE_IMAGES = {
     }
 }
 
-def init_sam2_model(model_type='small'):
-    """初始化SAM 2模型"""
-    global predictor, mask_generator, current_model
+def init_all_models():
+    """启动时预加载所有可用的SAM 2模型"""
+    global predictors, mask_generators, current_model
+    
     try:
-        if model_type not in MODELS_CONFIG:
-            print(f"不支持的模型类型: {model_type}")
-            return False
-            
-        model_config = MODELS_CONFIG[model_type]
-        sam2_checkpoint = model_config['checkpoint']
-        model_cfg = model_config['config']
-        
-        # 检查模型文件是否存在
-        if not os.path.exists(sam2_checkpoint):
-            print(f"模型文件不存在: {sam2_checkpoint}")
-            return False
-            
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"加载模型: {model_config['name']}")
-        print(f"使用设备: {device}")
+        print(f"开始预加载所有SAM 2模型，使用设备: {device}")
         
-        # 使用初版的简单方式
-        sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=device)
+        loaded_count = 0
+        for model_type, model_config in MODELS_CONFIG.items():
+            sam2_checkpoint = model_config['checkpoint']
+            model_cfg = model_config['config']
+            
+            # 检查模型文件是否存在
+            if not os.path.exists(sam2_checkpoint):
+                print(f"⚠️  {model_config['name']} 模型文件不存在: {sam2_checkpoint}")
+                continue
+                
+            try:
+                print(f"正在加载 {model_config['name']}...")
+                
+                # 使用初版的简单方式
+                sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=device)
+                
+                # 创建预测器和自动mask生成器
+                predictors[model_type] = SAM2ImagePredictor(sam2_model)
+                mask_generators[model_type] = SAM2AutomaticMaskGenerator(sam2_model)
+                
+                print(f"✓ {model_config['name']} 加载完成")
+                loaded_count += 1
+                
+            except Exception as e:
+                print(f"❌ {model_config['name']} 加载失败: {e}")
+                continue
         
-        # 创建预测器和自动mask生成器
-        predictor = SAM2ImagePredictor(sam2_model)
-        mask_generator = SAM2AutomaticMaskGenerator(sam2_model)
-        
-        current_model = model_type
-        print(f"SAM 2模型加载成功: {model_config['name']}")
+        if loaded_count == 0:
+            print("❌ 没有成功加载任何模型")
+            return False
+            
+        # 确保当前模型存在，否则使用第一个可用的模型
+        if current_model not in predictors:
+            current_model = list(predictors.keys())[0]
+            print(f"默认模型不可用，切换到: {MODELS_CONFIG[current_model]['name']}")
+            
+        print(f"🎉 所有模型预加载完成，共加载 {loaded_count} 个模型")
+        print(f"当前使用模型: {MODELS_CONFIG[current_model]['name']}")
         return True
+        
     except Exception as e:
-        print(f"模型加载失败: {e}")
+        print(f"❌ 模型预加载失败: {e}")
         return False
 
 def get_session_id():
@@ -211,7 +228,6 @@ def index():
 @app.route('/upload', methods=['POST'])
 def upload_image():
     """处理图片上传 - 接收前端处理后的base64图片"""
-    global predictor
     
     try:
         data = request.get_json()
@@ -263,9 +279,9 @@ def upload_image():
         sessions[session_id]['selected_masks'] = set()
         sessions[session_id]['mask_segmentations'] = []
         
-        # 设置图像到预测器，准备接收点击
-        if predictor:
-            predictor.set_image(image_np)
+        # 设置图像到当前预测器，准备接收点击
+        if current_model in predictors:
+            predictors[current_model].set_image(image_np)
         
         # 返回原图的base64用于前端显示和点击
         buffered = BytesIO()
@@ -380,7 +396,6 @@ def click_mask():
 @app.route('/segment_with_points', methods=['POST'])
 def segment_with_points():
     """基于用户选择的点进行分割"""
-    global predictor
     
     try:
         session_id = get_session_id()
@@ -406,7 +421,7 @@ def segment_with_points():
             x, y = int(point['x']), int(point['y'])
             print(f"处理点 {i+1}: ({x}, {y})")
             
-            masks, scores, _ = predictor.predict(
+            masks, scores, _ = predictors[current_model].predict(
                 point_coords=np.array([[x, y]]),
                 point_labels=np.array([1]),
                 multimask_output=False
@@ -460,7 +475,6 @@ def segment_with_points():
 @app.route('/add_point', methods=['POST'])
 def add_point():
     """添加新的点击点"""
-    global predictor
     
     try:
         session_id = get_session_id()
@@ -539,7 +553,6 @@ def clear_points():
 @app.route('/predict_multi', methods=['POST'])
 def predict_multi_masks():
     """基于所有点预测多个候选mask"""
-    global predictor
     
     try:
         session_id = get_session_id()
@@ -555,7 +568,7 @@ def predict_multi_masks():
         input_labels = np.array([p['label'] for p in points])
         
         # 预测多个mask（固定返回3个）
-        masks, scores, _ = predictor.predict(
+        masks, scores, _ = predictors[current_model].predict(
             point_coords=input_points,
             point_labels=input_labels,
             multimask_output=True,
@@ -588,7 +601,6 @@ def predict_multi_masks():
 @app.route('/predict_hover', methods=['POST'])
 def predict_hover():
     """专门用于悬浮预览的预测，不修改会话状态"""
-    global predictor
     
     try:
         session_id = get_session_id()
@@ -603,7 +615,7 @@ def predict_hover():
         input_point = np.array([[x, y]])
         input_label = np.array([1])  # 1表示前景点
         
-        masks, scores, _ = predictor.predict(
+        masks, scores, _ = predictors[current_model].predict(
             point_coords=input_point,
             point_labels=input_label,
             multimask_output=False,
@@ -673,8 +685,8 @@ def export_masks():
 
 @app.route('/switch_model', methods=['POST'])
 def switch_model():
-    """切换模型"""
-    global predictor
+    """快速切换预加载的模型"""
+    global current_model
     
     try:
         data = request.get_json()
@@ -683,42 +695,33 @@ def switch_model():
         if not model_type:
             return jsonify({'error': '模型类型不能为空'}), 400
             
-        if model_type not in MODELS_CONFIG:
-            return jsonify({'error': f'不支持的模型类型: {model_type}'}), 400
+        if model_type not in predictors:
+            return jsonify({'error': f'模型未预加载: {model_type}'}), 400
         
-        # 释放当前模型（如果存在）
-        if predictor is not None:
-            del predictor
-            predictor = None
-            
-        # 清空GPU缓存
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        # 即时切换模型（无需重新加载）
+        current_model = model_type
         
-        # 加载新模型
-        success = init_sam2_model(model_type)
+        # 为所有现有会话重新设置预测器，但保留图片和点
+        preserved_sessions = 0
+        for session_id, session_data in sessions.items():
+            if session_data.get('image') is not None:
+                # 重新设置图片到新的预测器
+                predictors[current_model].set_image(session_data['image'])
+                # 清除之前的分割结果，但保留图片和点
+                session_data['masks'] = []
+                session_data['selected_masks'] = set()
+                session_data['mask_segmentations'] = []
+                preserved_sessions += 1
+                print(f"会话 {session_id} 的图片已设置到模型 {MODELS_CONFIG[current_model]['name']}")
         
-        if success:
-            # 为所有现有会话重新设置预测器，但保留图片和点
-            for session_id, session_data in sessions.items():
-                if session_data.get('image') is not None:
-                    # 重新设置图片到新的预测器
-                    predictor.set_image(session_data['image'])
-                    # 清除之前的分割结果，但保留图片和点
-                    session_data['masks'] = []
-                    session_data['selected_masks'] = set()
-                    session_data['mask_segmentations'] = []
-                    print(f"会话 {session_id} 的图片已重新设置到新模型")
-            
-            return jsonify({
-                'success': True,
-                'model_type': model_type,
-                'model_name': MODELS_CONFIG[model_type]['name'],
-                'message': f'成功切换到 {MODELS_CONFIG[model_type]["name"]}',
-                'sessions_preserved': len([s for s in sessions.values() if s.get('image') is not None])
-            })
-        else:
-            return jsonify({'error': '模型加载失败，请检查模型文件是否存在'}), 500
+        return jsonify({
+            'success': True,
+            'model_type': model_type,
+            'model_name': MODELS_CONFIG[model_type]['name'],
+            'message': f'已瞬间切换到 {MODELS_CONFIG[model_type]["name"]}',
+            'sessions_preserved': preserved_sessions,
+            'switch_time': '瞬间切换'
+        })
             
     except Exception as e:
         return jsonify({'error': f'切换模型失败: {str(e)}'}), 500
@@ -729,17 +732,17 @@ def get_models():
     try:
         models = []
         for model_type, config in MODELS_CONFIG.items():
-            # 检查模型文件是否存在（配置文件检查是可选的）
-            model_exists = os.path.exists(config['checkpoint'])
-            config_exists = os.path.exists(config['config']) if 'config' in config else True
+            # 检查模型是否已预加载
+            is_loaded = model_type in predictors
             
             models.append({
                 'type': model_type,
                 'name': config['name'],
-                'available': model_exists,  # 只要模型文件存在就算可用
+                'available': is_loaded,  # 只有预加载成功的才算可用
                 'current': model_type == current_model,
                 'checkpoint_path': config['checkpoint'],
-                'config_path': config.get('config', '')
+                'config_path': config.get('config', ''),
+                'status': '已加载' if is_loaded else '未加载'
             })
         
         return jsonify({
@@ -779,7 +782,6 @@ def get_examples():
 @app.route('/load_example/<filename>')
 def load_example(filename):
     """加载示例图片"""
-    global predictor
     
     try:
         # 验证文件名安全性
@@ -811,9 +813,9 @@ def load_example(filename):
         sessions[session_id]['selected_masks'] = set()
         sessions[session_id]['mask_segmentations'] = []
         
-        # 设置图像到预测器
-        if predictor:
-            predictor.set_image(image_np)
+        # 设置图像到当前预测器
+        if current_model in predictors:
+            predictors[current_model].set_image(image_np)
             
         # 返回图片数据
         buffered = BytesIO()
@@ -838,16 +840,17 @@ def health_check():
     """健康检查"""
     return jsonify({
         'status': 'ok',
-        'model_loaded': predictor is not None,
+        'models_loaded': len(predictors),
+        'available_models': list(predictors.keys()),
         'current_model': current_model,
         'model_name': MODELS_CONFIG[current_model]['name'] if current_model in MODELS_CONFIG else 'Unknown',
         'device': str(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
     })
 
 if __name__ == '__main__':
-    print("正在初始化SAM 2模型...")
-    if init_sam2_model():
+    print("正在预加载所有SAM 2模型...")
+    if init_all_models():
         print("启动Flask应用...")
         app.run(debug=True, host='0.0.0.0', port=3000)
     else:
-        print("模型初始化失败，请检查模型文件")
+        print("模型预加载失败，请检查模型文件")
