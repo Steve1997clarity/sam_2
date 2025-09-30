@@ -14,6 +14,7 @@ sys.path.append('./sam2_repo')
 
 from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
+from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -22,6 +23,7 @@ app.secret_key = 'sam2_interactive_segmentation_key'
 
 # 全局变量
 predictor = None
+mask_generator = None
 current_model = 'small'  # 默认使用small模型
 
 # 模型配置 - 使用初版的路径结构
@@ -53,7 +55,7 @@ sessions = {}
 
 def init_sam2_model(model_type='small'):
     """初始化SAM 2模型"""
-    global predictor, current_model
+    global predictor, mask_generator, current_model
     try:
         if model_type not in MODELS_CONFIG:
             print(f"不支持的模型类型: {model_type}")
@@ -74,7 +76,11 @@ def init_sam2_model(model_type='small'):
         
         # 使用初版的简单方式
         sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=device)
+        
+        # 创建预测器和自动mask生成器
         predictor = SAM2ImagePredictor(sam2_model)
+        mask_generator = SAM2AutomaticMaskGenerator(sam2_model)
+        
         current_model = model_type
         print(f"SAM 2模型加载成功: {model_config['name']}")
         return True
@@ -96,7 +102,8 @@ def init_session(session_id):
             'image_path': None,
             'points': [],  # 存储所有点击点 [{'x': x, 'y': y, 'label': 1/-1, 'id': uuid}]
             'masks': [],   # 存储所有mask结果
-            'selected_masks': []  # 选中的mask索引
+            'selected_masks': set(),  # 选中的mask ID集合
+            'mask_segmentations': []  # 存储原始分割结果用于点击检测
         }
 
 def extract_contours(mask):
@@ -122,6 +129,46 @@ def extract_contours(mask):
     except Exception as e:
         print(f"轮廓提取错误: {e}")
         return []
+
+def generate_mask_overlay(image_np, masks, mask_segmentations, selected_ids):
+    """生成带有mask的渲染图"""
+    try:
+        # 创建叠加图
+        overlay = image_np.copy().astype(np.float32)
+        
+        # 定义颜色表
+        colors = [
+            [255, 0, 0],    # 红色
+            [0, 255, 0],    # 绿色
+            [0, 0, 255],    # 蓝色
+            [255, 255, 0],  # 黄色
+            [255, 0, 255],  # 紫色
+            [0, 255, 255],  # 青色
+            [255, 128, 0],  # 橙色
+            [128, 0, 255],  # 紫蓝色
+            [0, 128, 255],  # 天蓝色
+            [255, 0, 128],  # 粉色
+        ]
+        
+        for i, mask_info in enumerate(masks):
+            mask_id = mask_info['id']
+            mask = mask_segmentations[i]  # 使用原始分割数据
+            
+            if mask_id in selected_ids:
+                color = [255, 255, 255]  # 白色表示选中
+            else:
+                color = colors[i % len(colors)]
+            
+            # 在overlay上绘制mask
+            mask_area = mask > 0
+            overlay[mask_area] = overlay[mask_area] * 0.6 + np.array(color) * 0.4
+        
+        # 转换回uint8
+        return overlay.astype(np.uint8)
+        
+    except Exception as e:
+        print(f"生成mask叠加图失败: {e}")
+        return image_np
 
 @app.route('/')
 def index():
@@ -179,20 +226,159 @@ def upload_image():
         sessions[session_id]['image_path'] = file_path
         sessions[session_id]['points'] = []  # 清空之前的点
         sessions[session_id]['masks'] = []   # 清空之前的mask
-        sessions[session_id]['selected_masks'] = []
+        sessions[session_id]['selected_masks'] = set()
+        sessions[session_id]['mask_segmentations'] = []
         
-        # 设置图像到预测器
-        if predictor:
-            predictor.set_image(image_np)
+        # 自动生成所有mask
+        print("开始自动分割...")
+        masks = mask_generator.generate(image_np)
+        
+        # 按面积排序，取前10个
+        masks_with_area = []
+        mask_segmentations = []
+        
+        for i, mask_info in enumerate(masks):
+            mask = mask_info['segmentation']
+            area = mask_info['area']
+            contours = extract_contours(mask)
+            
+            if contours:  # 只保留有效轮廓的mask
+                masks_with_area.append({
+                    'id': i,
+                    'area': area,
+                    'contours': contours,
+                    'score': mask_info.get('stability_score', 0.0)
+                })
+                mask_segmentations.append(mask)
+        
+        # 按面积排序，取前10个
+        sorted_indices = sorted(range(len(masks_with_area)), key=lambda i: masks_with_area[i]['area'], reverse=True)[:10]
+        
+        top_masks = [masks_with_area[i] for i in sorted_indices]
+        top_segmentations = [mask_segmentations[i] for i in sorted_indices]
+        
+        # 重新分配ID
+        for i, mask in enumerate(top_masks):
+            mask['id'] = i
+        
+        sessions[session_id]['masks'] = top_masks
+        sessions[session_id]['mask_segmentations'] = top_segmentations
+        print(f"生成了 {len(top_masks)} 个mask")
+        
+        # 生成初始渲染图
+        overlay_image = generate_mask_overlay(image_np, top_masks, top_segmentations, set())
+        
+        # 转换为base64
+        overlay_pil = Image.fromarray(overlay_image)
+        buffered = BytesIO()
+        overlay_pil.save(buffered, format="JPEG")
+        overlay_b64 = base64.b64encode(buffered.getvalue()).decode()
         
         return jsonify({
             'success': True,
             'session_id': session_id,
-            'message': '图片处理成功'
+            'overlay_image': f'data:image/jpeg;base64,{overlay_b64}',
+            'mask_count': len(top_masks),
+            'message': f'自动分割完成，生成了{len(top_masks)}个区域'
         })
         
     except Exception as e:
         return jsonify({'error': f'图片处理失败: {str(e)}'}), 500
+
+@app.route('/merge_masks', methods=['POST'])
+def merge_masks():
+    """合并选中的mask"""
+    try:
+        session_id = get_session_id()
+        if session_id not in sessions:
+            return jsonify({'error': '会话不存在'}), 400
+            
+        data = request.get_json()
+        selected_ids = data.get('mask_ids', [])
+        
+        if not selected_ids:
+            return jsonify({'error': '没有选择mask'}), 400
+        
+        masks = sessions[session_id]['masks']
+        
+        # 合并选中的mask轮廓
+        merged_contours = []
+        total_area = 0
+        
+        for mask_id in selected_ids:
+            mask = next((m for m in masks if m['id'] == mask_id), None)
+            if mask:
+                merged_contours.extend(mask['contours'])
+                total_area += mask['area']
+        
+        return jsonify({
+            'success': True,
+            'merged_mask': {
+                'contours': merged_contours,
+                'area': total_area,
+                'count': len(selected_ids)
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'合并失败: {str(e)}'}), 500
+
+@app.route('/click_mask', methods=['POST'])
+def click_mask():
+    """处理mask点击事件"""
+    try:
+        session_id = get_session_id()
+        if session_id not in sessions:
+            return jsonify({'error': '会话不存在'}), 400
+            
+        data = request.get_json()
+        x = int(data['x'])
+        y = int(data['y'])
+        
+        masks = sessions[session_id]['masks']
+        mask_segmentations = sessions[session_id]['mask_segmentations']
+        selected_masks = sessions[session_id]['selected_masks']
+        image_np = sessions[session_id]['image']
+        
+        # 检查点击位置对应哪个mask
+        clicked_mask_id = None
+        for i, mask in enumerate(mask_segmentations):
+            if y < mask.shape[0] and x < mask.shape[1] and mask[y, x]:
+                clicked_mask_id = i
+                break
+        
+        if clicked_mask_id is not None:
+            # 切换选中状态
+            if clicked_mask_id in selected_masks:
+                selected_masks.remove(clicked_mask_id)
+            else:
+                selected_masks.add(clicked_mask_id)
+            
+            print(f"点击了mask {clicked_mask_id}, 当前选中: {selected_masks}")
+            
+            # 重新生成渲染图
+            overlay_image = generate_mask_overlay(image_np, masks, mask_segmentations, selected_masks)
+            
+            # 转换为base64
+            overlay_pil = Image.fromarray(overlay_image)
+            buffered = BytesIO()
+            overlay_pil.save(buffered, format="JPEG")
+            overlay_b64 = base64.b64encode(buffered.getvalue()).decode()
+            
+            return jsonify({
+                'success': True,
+                'overlay_image': f'data:image/jpeg;base64,{overlay_b64}',
+                'clicked_mask': clicked_mask_id,
+                'selected_count': len(selected_masks)
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': '没有点击到任何区域'
+            })
+            
+    except Exception as e:
+        return jsonify({'error': f'点击处理失败: {str(e)}'}), 500
 
 @app.route('/add_point', methods=['POST'])
 def add_point():
