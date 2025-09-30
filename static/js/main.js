@@ -193,32 +193,46 @@ class SAM2Interface {
             const isMobile = window.innerWidth <= 768;
             const maxWidth = isMobile ? Math.min(window.innerWidth - 40, 600) : 800;
             const maxHeight = isMobile ? Math.min(window.innerHeight - 200, 450) : 600;
-            
+
             // 正确计算缩放比例，保持宽高比
             const widthRatio = maxWidth / this.imageWidth;
             const heightRatio = maxHeight / this.imageHeight;
             const ratio = Math.min(widthRatio, heightRatio, 1); // 不放大图片
-            
+
             const displayWidth = Math.round(this.imageWidth * ratio);
             const displayHeight = Math.round(this.imageHeight * ratio);
-            
+
             console.log('显示尺寸:', displayWidth, 'x', displayHeight, '缩放比例:', ratio.toFixed(3));
-            
+
             // 设置canvas尺寸
             this.canvas.width = displayWidth;
             this.canvas.height = displayHeight;
             this.canvas.style.width = displayWidth + 'px';
             this.canvas.style.height = displayHeight + 'px';
-            
+
             // 设置overlay尺寸
             this.overlay.setAttribute('width', displayWidth);
             this.overlay.setAttribute('height', displayHeight);
             this.overlay.style.width = displayWidth + 'px';
             this.overlay.style.height = displayHeight + 'px';
-            
+
             // 绘制图片
             this.ctx.clearRect(0, 0, displayWidth, displayHeight);
             this.ctx.drawImage(img, 0, 0, displayWidth, displayHeight);
+
+            // 关键修复：同步SVG overlay的位置与canvas对齐
+            // 使用 requestAnimationFrame 确保DOM已更新
+            requestAnimationFrame(() => {
+                const canvasRect = this.canvas.getBoundingClientRect();
+                const containerRect = this.canvas.parentElement.getBoundingClientRect();
+                const offsetLeft = canvasRect.left - containerRect.left;
+                const offsetTop = canvasRect.top - containerRect.top;
+
+                this.overlay.style.left = offsetLeft + 'px';
+                this.overlay.style.top = offsetTop + 'px';
+
+                console.log('SVG overlay 位置调整:', offsetLeft, offsetTop);
+            });
         };
         img.src = this.imageData;
     }
