@@ -557,8 +557,8 @@ class SAM2Interface {
             
             item.innerHTML = `
                 <img class="example-image" src="${example.url}" alt="${example.name}" 
-                     onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                <div style="display:none; height:150px; background:#f8f9fa; display:flex; align-items:center; justify-content:center; color:#666;">
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div style="display:none; height:150px; background:#f8f9fa; align-items:center; justify-content:center; color:#666;">
                     图片加载失败
                 </div>
                 <div class="example-info">
