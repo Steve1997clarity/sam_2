@@ -159,11 +159,20 @@ class SAM2Interface {
     displayImage() {
         const img = new Image();
         img.onload = () => {
-            // 计算显示尺寸
-            const maxWidth = 800;
-            const ratio = Math.min(maxWidth / this.imageWidth, maxWidth / this.imageHeight);
-            const displayWidth = this.imageWidth * ratio;
-            const displayHeight = this.imageHeight * ratio;
+            // 根据屏幕大小动态调整最大尺寸
+            const isMobile = window.innerWidth <= 768;
+            const maxWidth = isMobile ? Math.min(window.innerWidth - 40, 600) : 800;
+            const maxHeight = isMobile ? Math.min(window.innerHeight - 200, 450) : 600;
+            
+            // 正确计算缩放比例，保持宽高比
+            const widthRatio = maxWidth / this.imageWidth;
+            const heightRatio = maxHeight / this.imageHeight;
+            const ratio = Math.min(widthRatio, heightRatio, 1); // 不放大图片
+            
+            const displayWidth = Math.round(this.imageWidth * ratio);
+            const displayHeight = Math.round(this.imageHeight * ratio);
+            
+            console.log('显示尺寸:', displayWidth, 'x', displayHeight, '缩放比例:', ratio.toFixed(3));
             
             // 设置canvas尺寸
             this.canvas.width = displayWidth;
