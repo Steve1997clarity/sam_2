@@ -143,10 +143,22 @@ def upload_image():
         session_id = get_session_id()
         init_session(session_id)
         
+        # 确保 uploads 目录存在，使用绝对路径
+        upload_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+        os.makedirs(upload_dir, exist_ok=True)
+        
         # 保存上传的文件
         filename = str(uuid.uuid4()) + '.' + file.filename.rsplit('.', 1)[1].lower()
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file_path = os.path.join(upload_dir, filename)
+        
+        print(f"保存文件到: {file_path}")
         file.save(file_path)
+        
+        # 验证文件是否保存成功
+        if not os.path.exists(file_path):
+            raise Exception(f"文件保存失败: {file_path}")
+        
+        print(f"文件保存成功，大小: {os.path.getsize(file_path)} bytes")
         
         # 加载图像
         image = Image.open(file_path)
