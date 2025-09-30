@@ -24,26 +24,26 @@ app.secret_key = 'sam2_interactive_segmentation_key'
 predictor = None
 current_model = 'small'  # 默认使用small模型
 
-# 模型配置
+# 模型配置 - 使用初版的路径结构
 MODELS_CONFIG = {
     'tiny': {
-        'checkpoint': './models/sam2.1_hiera_tiny.pt',
-        'config': './sam2_repo/configs/sam2.1/sam2.1_hiera_t.yaml',
+        'checkpoint': 'models/sam2.1_hiera_tiny.pt',
+        'config': 'configs/sam2.1/sam2.1_hiera_t.yaml',
         'name': 'Tiny (最快)'
     },
     'small': {
-        'checkpoint': './models/sam2.1_hiera_small.pt',
-        'config': './sam2_repo/configs/sam2.1/sam2.1_hiera_s.yaml',
+        'checkpoint': 'models/sam2.1_hiera_small.pt',
+        'config': 'configs/sam2.1/sam2.1_hiera_s.yaml',
         'name': 'Small (平衡)'
     },
     'base_plus': {
-        'checkpoint': './models/sam2.1_hiera_base_plus.pt',
-        'config': './sam2_repo/configs/sam2.1/sam2.1_hiera_b+.yaml',
+        'checkpoint': 'models/sam2.1_hiera_base_plus.pt',
+        'config': 'configs/sam2.1/sam2.1_hiera_b+.yaml',
         'name': 'Base Plus (高精度)'
     },
     'large': {
-        'checkpoint': './models/sam2.1_hiera_large.pt',
-        'config': './sam2_repo/configs/sam2.1/sam2.1_hiera_l.yaml',
+        'checkpoint': 'models/sam2.1_hiera_large.pt',
+        'config': 'configs/sam2.1/sam2.1_hiera_l.yaml',
         'name': 'Large (最高精度)'
     }
 }
@@ -68,16 +68,11 @@ def init_sam2_model(model_type='small'):
             print(f"模型文件不存在: {sam2_checkpoint}")
             return False
             
-        # 检查配置文件是否存在
-        if not os.path.exists(model_cfg):
-            print(f"配置文件不存在: {model_cfg}")
-            return False
-            
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"加载模型: {model_config['name']}")
         print(f"使用设备: {device}")
         
-        # 简单直接的方式，就像初版那样
+        # 使用初版的简单方式
         sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=device)
         predictor = SAM2ImagePredictor(sam2_model)
         current_model = model_type
@@ -451,17 +446,17 @@ def get_models():
     try:
         models = []
         for model_type, config in MODELS_CONFIG.items():
-            # 检查模型文件是否存在
+            # 检查模型文件是否存在（配置文件检查是可选的）
             model_exists = os.path.exists(config['checkpoint'])
-            config_exists = os.path.exists(config['config'])
+            config_exists = os.path.exists(config['config']) if 'config' in config else True
             
             models.append({
                 'type': model_type,
                 'name': config['name'],
-                'available': model_exists and config_exists,
+                'available': model_exists,  # 只要模型文件存在就算可用
                 'current': model_type == current_model,
                 'checkpoint_path': config['checkpoint'],
-                'config_path': config['config']
+                'config_path': config.get('config', '')
             })
         
         return jsonify({
