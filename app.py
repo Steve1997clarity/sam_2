@@ -235,7 +235,7 @@ def upload_image():
         
         # 返回原图的base64用于前端显示和点击
         buffered = BytesIO()
-        image.save(buffered, format="JPEG")
+        image.save(buffered, format="JPEG", quality=95)
         img_b64 = base64.b64encode(buffered.getvalue()).decode()
         
         return jsonify({
@@ -405,7 +405,7 @@ def segment_with_points():
         # 转换为base64
         overlay_pil = Image.fromarray(overlay)
         buffered = BytesIO()
-        overlay_pil.save(buffered, format="JPEG")
+        overlay_pil.save(buffered, format="JPEG", quality=95)
         overlay_b64 = base64.b64encode(buffered.getvalue()).decode()
         
         # 存储结果
