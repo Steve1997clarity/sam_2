@@ -61,6 +61,27 @@
             box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
         }
 
+        .btn-select {
+            background: white;
+            border: 2px solid #667eea;
+            color: #333;
+            padding: 12px 20px;
+            border-radius: 25px;
+            font-size: 1em;
+            cursor: pointer;
+            margin: 5px;
+            min-width: 180px;
+        }
+
+        .btn-select:hover {
+            background: #f0f4ff;
+        }
+
+        .btn-select:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+        }
+
         #status {
             margin-top: 20px;
             font-size: 1.1em;
@@ -184,6 +205,9 @@
         <div id="workspace" style="display: none;">
             <!-- 工具栏 -->
             <div class="toolbar">
+                <select id="modelSelect" class="btn-select">
+                    <option value="">加载模型...</option>
+                </select>
                 <button id="clearBtn" class="btn">清除点</button>
                 <button id="undoBtn" class="btn">撤销</button>
                 <button id="segmentBtn" class="btn">开始分割</button>

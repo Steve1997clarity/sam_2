@@ -17,8 +17,10 @@ class SAM2Interface {
         // 状态
         this.sessionId = null;
         this.isProcessing = false;
+        this.currentModel = 'small'; // 默认模型
         
         this.initEventListeners();
+        this.loadModels(); // 加载可用模型列表
     }
     
     initEventListeners() {
@@ -41,6 +43,13 @@ class SAM2Interface {
         document.getElementById('clearBtn').addEventListener('click', () => this.clearPoints());
         document.getElementById('undoBtn').addEventListener('click', () => this.removeLastPoint());
         document.getElementById('segmentBtn').addEventListener('click', () => this.segmentImage());
+        
+        // 模型选择器
+        document.getElementById('modelSelect').addEventListener('change', (e) => {
+            if (e.target.value) {
+                this.switchModel(e.target.value);
+            }
+        });
         
         // 画布点击事件
         this.canvas.addEventListener('click', (e) => this.handleClick(e));
@@ -360,6 +369,86 @@ class SAM2Interface {
     
     showWorkspace(show) {
         document.getElementById('workspace').style.display = show ? 'block' : 'none';
+    }
+    
+    async loadModels() {
+        try {
+            const response = await fetch('/get_models');
+            const result = await response.json();
+            
+            if (result.success) {
+                const select = document.getElementById('modelSelect');
+                select.innerHTML = '';
+                
+                result.models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.type;
+                    option.textContent = model.name;
+                    option.disabled = !model.available;
+                    
+                    if (model.current) {
+                        option.selected = true;
+                        this.currentModel = model.type;
+                    }
+                    
+                    if (!model.available) {
+                        option.textContent += ' (未安装)';
+                    }
+                    
+                    select.appendChild(option);
+                });
+                
+                console.log('当前模型:', this.currentModel);
+            }
+        } catch (error) {
+            console.error('加载模型列表失败:', error);
+            const select = document.getElementById('modelSelect');
+            select.innerHTML = '<option value="">加载失败</option>';
+        }
+    }
+    
+    async switchModel(modelType) {
+        if (modelType === this.currentModel) return;
+        
+        this.showLoading(true);
+        this.updateStatus('正在切换模型...');
+        
+        try {
+            const response = await fetch('/switch_model', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model_type: modelType })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.currentModel = modelType;
+                this.updateStatus(`已切换到 ${result.model_name}`);
+                
+                // 清除当前会话
+                this.clearPoints();
+                this.sessionId = null;
+                
+                // 如果有图片，需要重新上传
+                if (this.imageData) {
+                    this.showWorkspace(false);
+                    this.updateStatus('模型已切换，请重新上传图片');
+                }
+                
+                console.log('切换到模型:', modelType);
+            } else {
+                this.updateStatus(`切换失败: ${result.error}`);
+                // 恢复选择器
+                document.getElementById('modelSelect').value = this.currentModel;
+            }
+        } catch (error) {
+            console.error('模型切换失败:', error);
+            this.updateStatus('模型切换失败');
+            document.getElementById('modelSelect').value = this.currentModel;
+        } finally {
+            this.showLoading(false);
+        }
     }
 }
 
