@@ -21,6 +21,7 @@ class SAM2Interface {
         
         this.initEventListeners();
         this.loadModels(); // 加载可用模型列表
+        this.loadExampleImages(); // 加载示例图片列表
     }
     
     initEventListeners() {
@@ -56,6 +57,23 @@ class SAM2Interface {
         
         // 拖放事件
         this.initDragAndDrop();
+        
+        // 示例图片按钮
+        document.getElementById('examplesBtn').addEventListener('click', () => {
+            this.showExamplesModal();
+        });
+        
+        // 模态框关闭事件
+        document.getElementById('closeModal').addEventListener('click', () => {
+            this.hideExamplesModal();
+        });
+        
+        // 点击模态框背景关闭
+        document.getElementById('examplesModal').addEventListener('click', (e) => {
+            if (e.target.id === 'examplesModal') {
+                this.hideExamplesModal();
+            }
+        });
     }
     
     async uploadImage(file) {
@@ -493,10 +511,108 @@ class SAM2Interface {
             }
         });
         
-        // 点击上传区域也能选择文件
-        uploadZone.addEventListener('click', () => {
+        // 点击上传区域也能选择文件（但不包括按钮区域）
+        uploadZone.addEventListener('click', (e) => {
+            // 如果点击的是按钮或按钮容器，不触发文件选择
+            if (e.target.closest('.upload-buttons') || e.target.tagName === 'BUTTON') {
+                return;
+            }
             document.getElementById('uploadBtn').click();
         });
+    }
+    
+    async loadExampleImages() {
+        try {
+            const response = await fetch('/get_examples');
+            const result = await response.json();
+            
+            if (result.success) {
+                this.exampleImages = result.examples;
+                console.log('已加载示例图片:', this.exampleImages.length, '张');
+            } else {
+                console.error('加载示例图片失败:', result.error);
+            }
+        } catch (error) {
+            console.error('获取示例图片列表失败:', error);
+        }
+    }
+    
+    showExamplesModal() {
+        if (!this.exampleImages || this.exampleImages.length === 0) {
+            this.updateStatus('示例图片加载失败，请重试');
+            return;
+        }
+        
+        const modal = document.getElementById('examplesModal');
+        const grid = document.getElementById('examplesGrid');
+        
+        // 清空现有内容
+        grid.innerHTML = '';
+        
+        // 生成示例图片网格
+        this.exampleImages.forEach(example => {
+            const item = document.createElement('div');
+            item.className = 'example-item';
+            item.onclick = () => this.selectExample(example.filename);
+            
+            item.innerHTML = `
+                <img class="example-image" src="${example.url}" alt="${example.name}" 
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                <div style="display:none; height:150px; background:#f8f9fa; display:flex; align-items:center; justify-content:center; color:#666;">
+                    图片加载失败
+                </div>
+                <div class="example-info">
+                    <div class="example-name">${example.name}</div>
+                    <div class="example-description">${example.description}</div>
+                    <div class="example-category">${example.category}</div>
+                </div>
+            `;
+            
+            grid.appendChild(item);
+        });
+        
+        modal.style.display = 'flex';
+        // 阻止页面滚动
+        document.body.style.overflow = 'hidden';
+    }
+    
+    hideExamplesModal() {
+        const modal = document.getElementById('examplesModal');
+        modal.style.display = 'none';
+        // 恢复页面滚动
+        document.body.style.overflow = 'auto';
+    }
+    
+    async selectExample(filename) {
+        try {
+            this.hideExamplesModal();
+            this.showLoading(true);
+            this.updateStatus('正在加载示例图片...');
+            
+            const response = await fetch(`/load_example/${filename}`);
+            const result = await response.json();
+            
+            if (result.success) {
+                this.imageData = result.original_image;
+                this.imageWidth = result.width;
+                this.imageHeight = result.height;
+                this.sessionId = result.session_id;
+                
+                this.displayImage();
+                this.showImageDisplay(true);
+                this.updateStatus(result.message);
+                this.clearPoints();
+                
+                console.log('示例图片加载成功:', filename);
+            } else {
+                this.updateStatus(`加载示例图片失败: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('选择示例图片错误:', error);
+            this.updateStatus('加载示例图片失败，请重试');
+        } finally {
+            this.showLoading(false);
+        }
     }
 }
 

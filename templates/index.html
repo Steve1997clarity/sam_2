@@ -316,6 +316,136 @@
             font-weight: 500;
         }
 
+        /* Upload buttons */
+        .upload-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        /* Modal styles */
+        .modal {
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9) translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .modal-header {
+            padding: 20px 30px;
+            border-bottom: 1px solid #e1e5e9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            color: #333;
+            font-size: 1.3em;
+        }
+
+        .close {
+            font-size: 28px;
+            font-weight: bold;
+            color: #aaa;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .close:hover {
+            color: #333;
+        }
+
+        .modal-body {
+            padding: 30px;
+        }
+
+        .examples-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .example-item {
+            border: 2px solid #e1e5e9;
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .example-item:hover {
+            border-color: #667eea;
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.2);
+        }
+
+        .example-image {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            background: #f8f9fa;
+        }
+
+        .example-info {
+            padding: 15px;
+        }
+
+        .example-name {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .example-description {
+            font-size: 0.9em;
+            color: #666;
+            line-height: 1.4;
+        }
+
+        .example-category {
+            display: inline-block;
+            background: #f0f4ff;
+            color: #667eea;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-top: 8px;
+        }
+
         /* 响应式设计 */
         @media (max-width: 1024px) {
             .main-content {
@@ -365,6 +495,24 @@
                 flex: 1;
                 min-width: 120px;
             }
+            
+            .upload-buttons {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .examples-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .modal-content {
+                width: 95%;
+                max-height: 90vh;
+            }
+            
+            .modal-header, .modal-body {
+                padding: 20px;
+            }
         }
     </style>
 </head>
@@ -387,7 +535,10 @@
                         <div class="upload-icon">📁</div>
                         <h3>拖放图片到此处</h3>
                         <p>或</p>
-                        <button id="uploadBtn" class="btn-primary">📷 选择文件</button>
+                        <div class="upload-buttons">
+                            <button id="uploadBtn" class="btn-primary">📷 选择文件</button>
+                            <button id="examplesBtn" class="btn-secondary">🖼️ 选择示例</button>
+                        </div>
                         <p class="hint">支持 JPG, PNG 格式，最大 15MB</p>
                     </div>
                 </div>
@@ -438,6 +589,21 @@
         <div id="loading" style="display: none;">
             <div class="spinner"></div>
             <p>处理中...</p>
+        </div>
+        
+        <!-- Examples Modal -->
+        <div id="examplesModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>选择示例图片</h3>
+                    <span class="close" id="closeModal">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div id="examplesGrid" class="examples-grid">
+                        <!-- 示例图片将动态加载到这里 -->
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     

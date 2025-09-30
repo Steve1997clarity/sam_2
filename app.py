@@ -53,6 +53,40 @@ MODELS_CONFIG = {
 # 存储每个会话的状态
 sessions = {}
 
+# 示例图片配置
+EXAMPLE_IMAGES = {
+    'ceiling.jpg': {
+        'name': '天花板',
+        'description': '适合演示天花板区域分割',
+        'category': '建筑结构'
+    },
+    'mix_type.jpg': {
+        'name': '混合对象', 
+        'description': '适合演示多种类型对象分割',
+        'category': '复合场景'
+    },
+    'railing_1.jpg': {
+        'name': '栏杆A',
+        'description': '适合演示栏杆结构分割',
+        'category': '建筑结构'
+    },
+    'railing_2.jpg': {
+        'name': '栏杆B',
+        'description': '适合演示不同角度栏杆分割', 
+        'category': '建筑结构'
+    },
+    'wall_1.jpg': {
+        'name': '墙面A',
+        'description': '适合演示墙面区域分割',
+        'category': '建筑结构'
+    },
+    'wall_2.jpg': {
+        'name': '墙面B',
+        'description': '适合演示复杂墙面分割',
+        'category': '建筑结构'
+    }
+}
+
 def init_sam2_model(model_type='small'):
     """初始化SAM 2模型"""
     global predictor, mask_generator, current_model
@@ -716,6 +750,88 @@ def get_models():
         
     except Exception as e:
         return jsonify({'error': f'获取模型列表失败: {str(e)}'}), 500
+
+@app.route('/get_examples')
+def get_examples():
+    """获取示例图片列表"""
+    try:
+        examples = []
+        for filename, info in EXAMPLE_IMAGES.items():
+            # 检查文件是否存在
+            file_path = os.path.join('static', 'examples', filename)
+            if os.path.exists(file_path):
+                examples.append({
+                    'filename': filename,
+                    'name': info['name'],
+                    'description': info['description'],
+                    'category': info['category'],
+                    'url': f'/static/examples/{filename}'
+                })
+        
+        return jsonify({
+            'success': True,
+            'examples': examples
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'获取示例图片失败: {str(e)}'}), 500
+
+@app.route('/load_example/<filename>')
+def load_example(filename):
+    """加载示例图片"""
+    global predictor
+    
+    try:
+        # 验证文件名安全性
+        if filename not in EXAMPLE_IMAGES:
+            return jsonify({'error': '无效的示例图片'}), 400
+            
+        # 构建文件路径
+        file_path = os.path.join('static', 'examples', filename)
+        
+        if not os.path.exists(file_path):
+            return jsonify({'error': '示例图片文件不存在'}), 404
+            
+        session_id = get_session_id()
+        init_session(session_id)
+        
+        # 加载图像
+        image = Image.open(file_path)
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+            
+        # 转换为numpy数组
+        image_np = np.array(image)
+        
+        # 存储到会话
+        sessions[session_id]['image'] = image_np
+        sessions[session_id]['image_path'] = file_path
+        sessions[session_id]['points'] = []  # 清空之前的点
+        sessions[session_id]['masks'] = []   # 清空之前的mask
+        sessions[session_id]['selected_masks'] = set()
+        sessions[session_id]['mask_segmentations'] = []
+        
+        # 设置图像到预测器
+        if predictor:
+            predictor.set_image(image_np)
+            
+        # 返回图片数据
+        buffered = BytesIO()
+        image.save(buffered, format="JPEG", quality=95)
+        img_b64 = base64.b64encode(buffered.getvalue()).decode()
+        
+        return jsonify({
+            'success': True,
+            'session_id': session_id,
+            'original_image': f'data:image/jpeg;base64,{img_b64}',
+            'width': image.width,
+            'height': image.height,
+            'example_info': EXAMPLE_IMAGES[filename],
+            'message': f'已加载示例图片: {EXAMPLE_IMAGES[filename]["name"]}'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'加载示例图片失败: {str(e)}'}), 500
 
 @app.route('/health')
 def health_check():
