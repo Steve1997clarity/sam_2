@@ -9,6 +9,8 @@ from PIL import Image
 import base64
 from io import BytesIO
 import uuid
+from hydra import initialize_config_dir, compose
+from hydra.core.global_hydra import GlobalHydra
 
 sys.path.append('./sam2_repo')
 
@@ -72,8 +74,19 @@ def init_sam2_model(model_type='small'):
         print(f"加载模型: {model_config['name']}")
         print(f"使用设备: {device}")
         
-        # 使用模型ID而不是配置文件路径
-        sam2_model = build_sam2(model_id, sam2_checkpoint, device=device)
+        # 设置 Hydra 配置目录
+        config_dir = os.path.abspath("./sam2_repo/configs")
+        
+        # 清除已有的 Hydra 实例
+        if GlobalHydra().is_initialized():
+            GlobalHydra.instance().clear()
+        
+        # 初始化 Hydra 配置
+        with initialize_config_dir(config_dir=config_dir, version_base=None):
+            # 使用模型ID加载配置
+            cfg = compose(config_name=model_id)
+            sam2_model = build_sam2(cfg, sam2_checkpoint, device=device)
+            
         predictor = SAM2ImagePredictor(sam2_model)
         current_model = model_type
         print(f"SAM 2模型加载成功: {model_config['name']}")
