@@ -312,16 +312,13 @@ class AdvancedSAM2Interface {
             clientY = e.clientY;
         }
         
-        // 考虑设备像素比
-        const devicePixelRatio = window.devicePixelRatio || 1;
-        
-        // 计算相对于canvas的坐标
-        const canvasX = (clientX - rect.left) * devicePixelRatio;
-        const canvasY = (clientY - rect.top) * devicePixelRatio;
+        // 计算相对于canvas的坐标（不使用devicePixelRatio）
+        const canvasX = clientX - rect.left;
+        const canvasY = clientY - rect.top;
         
         // 转换为图像坐标
-        const scaleX = this.imageWidth / (rect.width * devicePixelRatio);
-        const scaleY = this.imageHeight / (rect.height * devicePixelRatio);
+        const scaleX = this.imageWidth / rect.width;
+        const scaleY = this.imageHeight / rect.height;
         
         const x = Math.round(canvasX * scaleX);
         const y = Math.round(canvasY * scaleY);
