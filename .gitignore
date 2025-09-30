@@ -1,0 +1,238 @@
+# SAM2 Flask Application .gitignore
+
+# ==========================================
+# Python
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.env
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ==========================================
+# SAM2 Models (Large Files)
+# ==========================================
+# Model checkpoint files - these are large (39MB to 897MB)
+models/*.pt
+models/*.pth
+models/*.ckpt
+models/*.safetensors
+
+# Keep the models directory structure
+!models/
+!models/.gitkeep
+
+# ==========================================
+# User Generated Content
+# ==========================================
+# User uploaded images
+uploads/
+!uploads/.gitkeep
+
+# ==========================================
+# SAM2 Repository (Optional)
+# ==========================================
+# If you clone the official SAM2 repo, you may want to ignore it
+# Uncomment the line below if you don't want to track the cloned repo
+# sam2_repo/
+
+# ==========================================
+# IDE and Editors
+# ==========================================
+# Visual Studio Code
+.vscode/
+.history/
+
+# PyCharm
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# ==========================================
+# Operating System
+# ==========================================
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ==========================================
+# Flask Application
+# ==========================================
+# Flask session files
+flask_session/
+instance/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# ==========================================
+# Environment and Configuration
+# ==========================================
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Configuration files with secrets
+config.ini
+config.yaml
+secrets.json
+
+# ==========================================
+# Logs and Temporary Files
+# ==========================================
+# Logs
+*.log
+logs/
+log/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+
+# Background processes
+nohup.out
+
+# ==========================================
+# Development and Testing
+# ==========================================
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# pytest
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ==========================================
+# Documentation
+# ==========================================
+# Generated documentation
+docs/_build/
+site/
+
+# ==========================================
+# Package Managers
+# ==========================================
+# npm (if you add any Node.js tools)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# pip
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ==========================================
+# Machine Learning / AI
+# ==========================================
+# TensorBoard logs
+runs/
+tensorboard_logs/
+
+# PyTorch Lightning logs
+lightning_logs/
+
+# MLflow
+mlruns/
+
+# Weights & Biases
+wandb/
+
+# ==========================================
+# Custom Application Files
+# ==========================================
+# Add any project-specific files you want to ignore
+# Example:
+# custom_config.json
+# private_keys/
