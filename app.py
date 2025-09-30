@@ -665,14 +665,23 @@ def switch_model():
         success = init_sam2_model(model_type)
         
         if success:
-            # 清空所有会话数据，因为模型变了
-            sessions.clear()
+            # 为所有现有会话重新设置预测器，但保留图片和点
+            for session_id, session_data in sessions.items():
+                if session_data.get('image') is not None:
+                    # 重新设置图片到新的预测器
+                    predictor.set_image(session_data['image'])
+                    # 清除之前的分割结果，但保留图片和点
+                    session_data['masks'] = []
+                    session_data['selected_masks'] = set()
+                    session_data['mask_segmentations'] = []
+                    print(f"会话 {session_id} 的图片已重新设置到新模型")
             
             return jsonify({
                 'success': True,
                 'model_type': model_type,
                 'model_name': MODELS_CONFIG[model_type]['name'],
-                'message': f'成功切换到 {MODELS_CONFIG[model_type]["name"]}'
+                'message': f'成功切换到 {MODELS_CONFIG[model_type]["name"]}',
+                'sessions_preserved': len([s for s in sessions.values() if s.get('image') is not None])
             })
         else:
             return jsonify({'error': '模型加载失败，请检查模型文件是否存在'}), 500

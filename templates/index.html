@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SAM2 图像分割</title>
+    <title>SAM2 智能图像分割</title>
     <style>
         * {
             margin: 0;
@@ -12,120 +12,152 @@
         }
 
         body {
-            font-family: 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
             min-height: 100vh;
-            padding: 20px;
+            color: #333;
         }
 
         .container {
-            max-width: 1000px;
+            max-width: 1400px;
             margin: 0 auto;
             background: white;
-            border-radius: 15px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
+            min-height: 100vh;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
         }
 
-        h1 {
-            text-align: center;
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-size: 1.8em;
+            font-weight: 600;
+        }
+
+        .model-select {
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 0.9em;
             color: #333;
+            cursor: pointer;
+            min-width: 180px;
+            backdrop-filter: blur(10px);
+        }
+
+        .model-select:hover {
+            background: white;
+        }
+
+        /* Main Content */
+        .main-content {
+            display: flex;
+            min-height: calc(100vh - 80px);
+        }
+
+        /* Left Panel */
+        .left-panel {
+            flex: 1;
             padding: 30px;
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            font-size: 2.2em;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
         }
 
-        .upload-area {
+        .upload-zone {
+            border: 3px dashed #e1e5e9;
+            border-radius: 15px;
+            padding: 60px 40px;
             text-align: center;
-            padding: 40px;
-            background: #f8f9fa;
+            background: #fafbfc;
+            transition: all 0.3s ease;
+            cursor: pointer;
         }
 
-        .btn {
+        .upload-zone:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .upload-zone.dragover {
+            border-color: #667eea;
+            background: #f0f4ff;
+            transform: scale(1.02);
+        }
+
+        .upload-placeholder h3 {
+            color: #333;
+            margin: 15px 0 10px;
+            font-size: 1.3em;
+        }
+
+        .upload-placeholder p {
+            color: #666;
+            margin: 10px 0;
+        }
+
+        .upload-placeholder .hint {
+            font-size: 0.9em;
+            color: #999;
+            margin-top: 15px;
+        }
+
+        .upload-icon {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 20px;
+            background: #667eea;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+        }
+
+        .btn-primary {
             background: linear-gradient(45deg, #667eea, #764ba2);
             color: white;
             border: none;
-            padding: 15px 30px;
-            border-radius: 25px;
-            font-size: 1.1em;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin: 5px;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
-        }
-
-        .btn-select {
-            background: white;
-            border: 2px solid #667eea;
-            color: #333;
-            padding: 12px 20px;
+            padding: 12px 30px;
             border-radius: 25px;
             font-size: 1em;
             cursor: pointer;
-            margin: 5px;
-            min-width: 180px;
-        }
-
-        .btn-select:hover {
-            background: #f0f4ff;
-        }
-
-        .btn-select:focus {
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
-        }
-
-        #status {
-            margin-top: 20px;
-            font-size: 1.1em;
-            color: #666;
-        }
-
-        #workspace {
-            padding: 20px;
-        }
-
-        .toolbar {
-            display: flex;
-            justify-content: center;
+            transition: all 0.3s ease;
+            display: inline-flex;
             align-items: center;
-            gap: 15px;
-            padding: 20px;
+            gap: 8px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .image-display {
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             background: #f8f9fa;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        #pointsCount {
-            font-weight: bold;
-            color: #667eea;
-            margin-left: 20px;
-        }
-
-        .canvas-container {
-            text-align: center;
             position: relative;
-            display: inline-block;
-            max-width: 100%;
-            overflow: auto;
+            text-align: center;
         }
 
         #imageCanvas {
-            border: 2px solid #dee2e6;
-            border-radius: 10px;
-            cursor: crosshair;
             max-width: 100%;
             height: auto;
             display: block;
             margin: 0 auto;
+            cursor: crosshair;
         }
 
         #overlayCanvas {
@@ -133,6 +165,119 @@
             top: 0;
             left: 0;
             pointer-events: none;
+        }
+
+        /* Right Panel */
+        .right-panel {
+            width: 350px;
+            background: #f8f9fa;
+            padding: 30px 25px;
+            border-left: 1px solid #e1e5e9;
+            overflow-y: auto;
+        }
+
+        .control-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e1e5e9;
+        }
+
+        .control-card h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .guide {
+            list-style: none;
+            padding: 0;
+        }
+
+        .guide li {
+            padding: 8px 0;
+            color: #666;
+            border-bottom: 1px solid #f0f0f0;
+            position: relative;
+            padding-left: 25px;
+        }
+
+        .guide li:last-child {
+            border-bottom: none;
+        }
+
+        .guide li::before {
+            content: counter(step);
+            counter-increment: step;
+            position: absolute;
+            left: 0;
+            background: #667eea;
+            color: white;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .guide {
+            counter-reset: step;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .point-counter {
+            background: #f0f4ff;
+            border: 1px solid #d1d9ff;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .btn-secondary {
+            background: white;
+            border: 2px solid #e1e5e9;
+            color: #333;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .btn-secondary:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .status-message {
+            background: #f8f9fa;
+            border: 1px solid #e1e5e9;
+            padding: 15px;
+            border-radius: 8px;
+            color: #666;
+            font-size: 0.9em;
+            line-height: 1.4;
+            min-height: 60px;
         }
 
         #loading {
@@ -147,6 +292,7 @@
             justify-content: center;
             align-items: center;
             z-index: 1000;
+            backdrop-filter: blur(5px);
         }
 
         .spinner {
@@ -165,63 +311,130 @@
         }
 
         #loading p {
-            font-size: 1.2em;
+            font-size: 1.1em;
             color: #333;
+            font-weight: 500;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 1024px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .right-panel {
+                width: 100%;
+                border-left: none;
+                border-top: 1px solid #e1e5e9;
+            }
+            
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
         }
 
         @media (max-width: 768px) {
             .container {
-                margin: 10px;
+                margin: 0;
             }
             
-            h1 {
-                font-size: 1.8em;
+            .header {
+                padding: 15px 20px;
+            }
+            
+            .header h1 {
+                font-size: 1.5em;
+            }
+            
+            .left-panel, .right-panel {
                 padding: 20px;
             }
             
-            .toolbar {
-                flex-direction: column;
-                gap: 10px;
+            .upload-zone {
+                padding: 40px 20px;
             }
             
-            .btn {
-                padding: 12px 25px;
-                font-size: 1em;
+            .controls {
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+            
+            .btn-secondary, .btn-primary {
+                flex: 1;
+                min-width: 120px;
             }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>SAM2 图像分割</h1>
+        <!-- Header -->
+        <header class="header">
+            <h1>SAM2 智能图像分割</h1>
+            <select id="modelSelect" class="model-select">
+                <option value="">加载模型...</option>
+            </select>
+        </header>
         
-        <!-- 上传区域 -->
-        <div class="upload-area">
-            <button id="uploadBtn" class="btn">选择图片</button>
-            <div id="status"></div>
-        </div>
-        
-        <!-- 工作区域 -->
-        <div id="workspace" style="display: none;">
-            <!-- 工具栏 -->
-            <div class="toolbar">
-                <select id="modelSelect" class="btn-select">
-                    <option value="">加载模型...</option>
-                </select>
-                <button id="clearBtn" class="btn">清除点</button>
-                <button id="undoBtn" class="btn">撤销</button>
-                <button id="segmentBtn" class="btn">开始分割</button>
-                <span id="pointsCount">0/5 个点</span>
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Left Panel -->
+            <div class="left-panel">
+                <div class="upload-zone" id="uploadZone">
+                    <div class="upload-placeholder">
+                        <div class="upload-icon">📁</div>
+                        <h3>拖放图片到此处</h3>
+                        <p>或</p>
+                        <button id="uploadBtn" class="btn-primary">📷 选择文件</button>
+                        <p class="hint">支持 JPG, PNG 格式，最大 15MB</p>
+                    </div>
+                </div>
+                
+                <div class="image-display" id="imageDisplay" style="display: none;">
+                    <canvas id="imageCanvas"></canvas>
+                    <svg id="overlayCanvas"></svg>
+                </div>
             </div>
             
-            <!-- 图片显示 -->
-            <div class="canvas-container">
-                <canvas id="imageCanvas"></canvas>
-                <svg id="overlayCanvas"></svg>
+            <!-- Right Panel -->
+            <div class="right-panel">
+                <div class="control-card">
+                    <h3>📋 操作指南</h3>
+                    <ol class="guide">
+                        <li>上传或拖放图片</li>
+                        <li>在图片上点击选择区域（最多5个点）</li>
+                        <li>点击"开始分割"查看结果</li>
+                    </ol>
+                </div>
+                
+                <div class="control-card" id="controlsCard" style="display: none;">
+                    <h3>🎛️ 控制工具</h3>
+                    <div class="controls">
+                        <div class="point-counter">
+                            <span id="pointsCount">0/5 个点</span>
+                        </div>
+                        <button id="clearBtn" class="btn-secondary">
+                            🗑️ 清除点
+                        </button>
+                        <button id="undoBtn" class="btn-secondary">
+                            ↶ 撤销
+                        </button>
+                        <button id="segmentBtn" class="btn-primary">
+                            ✨ 开始分割
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="control-card">
+                    <h3>📊 状态</h3>
+                    <div id="status" class="status-message">等待上传图片...</div>
+                </div>
             </div>
         </div>
         
-        <!-- 加载提示 -->
+        <!-- Loading -->
         <div id="loading" style="display: none;">
             <div class="spinner"></div>
             <p>处理中...</p>

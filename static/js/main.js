@@ -53,6 +53,9 @@ class SAM2Interface {
         
         // 画布点击事件
         this.canvas.addEventListener('click', (e) => this.handleClick(e));
+        
+        // 拖放事件
+        this.initDragAndDrop();
     }
     
     async uploadImage(file) {
@@ -96,7 +99,7 @@ class SAM2Interface {
                 this.sessionId = result.session_id;
                 
                 this.displayImage();
-                this.showWorkspace(true);
+                this.showImageDisplay(true);
                 this.updateStatus('图片上传成功，请在图片上点击选择区域（最多5个点）');
                 this.clearPoints();
             } else {
@@ -367,8 +370,10 @@ class SAM2Interface {
         document.getElementById('loading').style.display = show ? 'flex' : 'none';
     }
     
-    showWorkspace(show) {
-        document.getElementById('workspace').style.display = show ? 'block' : 'none';
+    showImageDisplay(show) {
+        document.getElementById('uploadZone').style.display = show ? 'none' : 'block';
+        document.getElementById('imageDisplay').style.display = show ? 'block' : 'none';
+        document.getElementById('controlsCard').style.display = show ? 'block' : 'none';
     }
     
     async loadModels() {
@@ -424,19 +429,18 @@ class SAM2Interface {
             
             if (result.success) {
                 this.currentModel = modelType;
-                this.updateStatus(`已切换到 ${result.model_name}`);
                 
-                // 清除当前会话
+                // 清除当前的点和分割结果，但保留图片
                 this.clearPoints();
-                this.sessionId = null;
                 
-                // 如果有图片，需要重新上传
-                if (this.imageData) {
-                    this.showWorkspace(false);
-                    this.updateStatus('模型已切换，请重新上传图片');
+                // 如果保留了会话，显示相应信息
+                if (result.sessions_preserved > 0) {
+                    this.updateStatus(`已切换到 ${result.model_name}，图片已保留，可以重新选择点进行分割`);
+                } else {
+                    this.updateStatus(`已切换到 ${result.model_name}`);
                 }
                 
-                console.log('切换到模型:', modelType);
+                console.log('切换到模型:', modelType, '保留会话数:', result.sessions_preserved);
             } else {
                 this.updateStatus(`切换失败: ${result.error}`);
                 // 恢复选择器
@@ -449,6 +453,50 @@ class SAM2Interface {
         } finally {
             this.showLoading(false);
         }
+    }
+    
+    initDragAndDrop() {
+        const uploadZone = document.getElementById('uploadZone');
+        
+        // 阻止默认拖放行为
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+        
+        // 拖放视觉反馈
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadZone.addEventListener(eventName, () => {
+                uploadZone.classList.add('dragover');
+            });
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadZone.addEventListener(eventName, () => {
+                uploadZone.classList.remove('dragover');
+            });
+        });
+        
+        // 处理文件拖放
+        uploadZone.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                // 检查文件类型
+                if (file.type.startsWith('image/')) {
+                    this.uploadImage(file);
+                } else {
+                    this.updateStatus('请拖放图片文件（JPG, PNG等格式）');
+                }
+            }
+        });
+        
+        // 点击上传区域也能选择文件
+        uploadZone.addEventListener('click', () => {
+            document.getElementById('uploadBtn').click();
+        });
     }
 }
 
