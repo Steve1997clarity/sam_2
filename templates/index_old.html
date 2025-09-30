@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+    <title>SAM 2 高级交互式图像分割</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* 防止移动端双击缩放 */
+        * {
+            touch-action: manipulation;
+        }
+        
+        /* 改善移动端触摸体验 */
+        .image-wrapper {
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SAM 2 智能分割</h1>
+        
+        <!-- 上传区域 -->
+        <div class="upload-section">
+            <input type="file" id="imageInput" accept="image/*" style="display: none;">
+            <button id="uploadBtn" class="btn-primary">选择图片</button>
+            <div id="uploadStatus" class="status"></div>
+        </div>
+        
+        <!-- 主要内容区域 -->
+        <div id="imageContainer" class="image-container" style="display: none;">
+            
+            <!-- 工具栏 -->
+            <div class="toolbar">
+                <div class="toolbar-section">
+                    <h3>模型选择</h3>
+                    <div class="model-selector">
+                        <select id="modelSelect" class="model-select">
+                            <option value="">加载中...</option>
+                        </select>
+                        <div id="modelStatus" class="model-status">
+                            <span id="currentModel">Small (平衡)</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="toolbar-section">
+                    <h3>交互模式</h3>
+                    <div class="mode-buttons">
+                        <button id="hoverMode" class="mode-btn active" title="鼠标悬浮预览">
+                            <span class="icon">👆</span>
+                            悬浮预览
+                        </button>
+                        <button id="clickMode" class="mode-btn" title="点击模式：左键添加正向点，Shift+左键添加负向点">
+                            <span class="icon">🎯</span>
+                            点击分割
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="toolbar-section">
+                    <h3>操作工具</h3>
+                    <div class="action-buttons">
+                        <button id="clearPoints" class="action-btn" title="清除所有点">
+                            <span class="icon">🗑️</span>
+                            清除点
+                        </button>
+                        <button id="undoPoint" class="action-btn" title="撤销最后一个点">
+                            <span class="icon">↶</span>
+                            撤销
+                        </button>
+                        <button id="exportMasks" class="action-btn export-btn" title="导出选中的mask">
+                            <span class="icon">💾</span>
+                            导出
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 主要工作区 -->
+            <div class="workspace">
+                <!-- 图像显示区 -->
+                <div class="image-panel">
+                    <div class="image-wrapper">
+                        <canvas id="imageCanvas"></canvas>
+                        <svg id="overlayCanvas" class="overlay-svg"></svg>
+                        
+                        <!-- 图片区域加载指示器 -->
+                        <div id="imageProcessing" class="image-processing" style="display: none;">
+                            <div class="processing-content">
+                                <div class="processing-spinner"></div>
+                                <p id="processingText">正在处理...</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 状态栏 -->
+                    <div class="status-bar">
+                        <div class="status-item">
+                            <label>图片尺寸:</label>
+                            <span id="imageDimensions">-</span>
+                        </div>
+                        <div class="status-item">
+                            <label>当前位置:</label>
+                            <span id="currentPosition">-</span>
+                        </div>
+                        <div class="status-item">
+                            <label>点击数:</label>
+                            <span id="pointsCount">0</span>
+                        </div>
+                        <div class="status-item">
+                            <label>分割结果:</label>
+                            <span id="masksCount">0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 侧边面板 -->
+                <div class="side-panel">
+                    <!-- 图例 -->
+                    <div class="panel-section">
+                        <h3>图例</h3>
+                        <div class="legend">
+                            <div class="legend-item">
+                                <div class="legend-color positive-point"></div>
+                                <span>正向点</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color negative-point"></div>
+                                <span>负向点</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 加载提示 -->
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>正在处理...</p>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

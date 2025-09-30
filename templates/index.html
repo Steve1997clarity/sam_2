@@ -2,149 +2,200 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
-    <title>SAM 2 高级交互式图像分割</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAM2 图像分割</title>
     <style>
-        /* 防止移动端双击缩放 */
         * {
-            touch-action: manipulation;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        
-        /* 改善移动端触摸体验 */
-        .image-wrapper {
-            touch-action: none;
-            -webkit-touch-callout: none;
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-            user-select: none;
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            padding: 30px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 2.2em;
+        }
+
+        .upload-area {
+            text-align: center;
+            padding: 40px;
+            background: #f8f9fa;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        #status {
+            margin-top: 20px;
+            font-size: 1.1em;
+            color: #666;
+        }
+
+        #workspace {
+            padding: 20px;
+        }
+
+        .toolbar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        #pointsCount {
+            font-weight: bold;
+            color: #667eea;
+            margin-left: 20px;
+        }
+
+        .canvas-container {
+            text-align: center;
+            position: relative;
+            display: inline-block;
+        }
+
+        #imageCanvas {
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            cursor: crosshair;
+            max-width: 100%;
+        }
+
+        #overlayCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #loading p {
+            font-size: 1.2em;
+            color: #333;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+            }
+            
+            h1 {
+                font-size: 1.8em;
+                padding: 20px;
+            }
+            
+            .toolbar {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .btn {
+                padding: 12px 25px;
+                font-size: 1em;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>SAM 2 智能分割</h1>
+        <h1>SAM2 图像分割</h1>
         
         <!-- 上传区域 -->
-        <div class="upload-section">
-            <input type="file" id="imageInput" accept="image/*" style="display: none;">
-            <button id="uploadBtn" class="btn-primary">选择图片</button>
-            <div id="uploadStatus" class="status"></div>
+        <div class="upload-area">
+            <button id="uploadBtn" class="btn">选择图片</button>
+            <div id="status"></div>
         </div>
         
-        <!-- 主要内容区域 -->
-        <div id="imageContainer" class="image-container" style="display: none;">
-            
+        <!-- 工作区域 -->
+        <div id="workspace" style="display: none;">
             <!-- 工具栏 -->
             <div class="toolbar">
-                <div class="toolbar-section">
-                    <h3>模型选择</h3>
-                    <div class="model-selector">
-                        <select id="modelSelect" class="model-select">
-                            <option value="">加载中...</option>
-                        </select>
-                        <div id="modelStatus" class="model-status">
-                            <span id="currentModel">Small (平衡)</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="toolbar-section">
-                    <h3>交互模式</h3>
-                    <div class="mode-buttons">
-                        <button id="hoverMode" class="mode-btn active" title="鼠标悬浮预览">
-                            <span class="icon">👆</span>
-                            悬浮预览
-                        </button>
-                        <button id="clickMode" class="mode-btn" title="点击模式：左键添加正向点，Shift+左键添加负向点">
-                            <span class="icon">🎯</span>
-                            点击分割
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="toolbar-section">
-                    <h3>操作工具</h3>
-                    <div class="action-buttons">
-                        <button id="clearPoints" class="action-btn" title="清除所有点">
-                            <span class="icon">🗑️</span>
-                            清除点
-                        </button>
-                        <button id="undoPoint" class="action-btn" title="撤销最后一个点">
-                            <span class="icon">↶</span>
-                            撤销
-                        </button>
-                        <button id="exportMasks" class="action-btn export-btn" title="导出选中的mask">
-                            <span class="icon">💾</span>
-                            导出
-                        </button>
-                    </div>
-                </div>
+                <button id="clearBtn" class="btn">清除点</button>
+                <button id="undoBtn" class="btn">撤销</button>
+                <button id="segmentBtn" class="btn">开始分割</button>
+                <span id="pointsCount">0/5 个点</span>
             </div>
             
-            <!-- 主要工作区 -->
-            <div class="workspace">
-                <!-- 图像显示区 -->
-                <div class="image-panel">
-                    <div class="image-wrapper">
-                        <canvas id="imageCanvas"></canvas>
-                        <svg id="overlayCanvas" class="overlay-svg"></svg>
-                        
-                        <!-- 图片区域加载指示器 -->
-                        <div id="imageProcessing" class="image-processing" style="display: none;">
-                            <div class="processing-content">
-                                <div class="processing-spinner"></div>
-                                <p id="processingText">正在处理...</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- 状态栏 -->
-                    <div class="status-bar">
-                        <div class="status-item">
-                            <label>图片尺寸:</label>
-                            <span id="imageDimensions">-</span>
-                        </div>
-                        <div class="status-item">
-                            <label>当前位置:</label>
-                            <span id="currentPosition">-</span>
-                        </div>
-                        <div class="status-item">
-                            <label>点击数:</label>
-                            <span id="pointsCount">0</span>
-                        </div>
-                        <div class="status-item">
-                            <label>分割结果:</label>
-                            <span id="masksCount">0</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- 侧边面板 -->
-                <div class="side-panel">
-                    <!-- 图例 -->
-                    <div class="panel-section">
-                        <h3>图例</h3>
-                        <div class="legend">
-                            <div class="legend-item">
-                                <div class="legend-color positive-point"></div>
-                                <span>正向点</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-color negative-point"></div>
-                                <span>负向点</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <!-- 图片显示 -->
+            <div class="canvas-container">
+                <canvas id="imageCanvas"></canvas>
+                <svg id="overlayCanvas"></svg>
             </div>
         </div>
         
         <!-- 加载提示 -->
-        <div id="loading" class="loading" style="display: none;">
+        <div id="loading" style="display: none;">
             <div class="spinner"></div>
-            <p>正在处理...</p>
+            <p>处理中...</p>
         </div>
     </div>
     
