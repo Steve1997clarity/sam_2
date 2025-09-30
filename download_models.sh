@@ -18,11 +18,18 @@ PROJECT_DIR="$SCRIPT_DIR"
 MODELS_DIR="$PROJECT_DIR/models"
 
 # 模型配置
-declare -A MODELS=(
-    ["tiny"]="https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_tiny.pt 39"
-    ["small"]="https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt 155" 
-    ["base_plus"]="https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt 323"
-    ["large"]="https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt 897"
+declare -A MODEL_URLS=(
+    ["tiny"]="https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_tiny.pt"
+    ["small"]="https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt" 
+    ["base_plus"]="https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt"
+    ["large"]="https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt"
+)
+
+declare -A MODEL_SIZES=(
+    ["tiny"]="39"
+    ["small"]="155"
+    ["base_plus"]="323"
+    ["large"]="897"
 )
 
 declare -A MODEL_NAMES=(
@@ -114,9 +121,8 @@ create_directories() {
 # 下载单个模型
 download_model() {
     local model_key=$1
-    local model_info=(${MODELS[$model_key]})
-    local url=${model_info[0]}
-    local size=${model_info[1]}
+    local url=${MODEL_URLS[$model_key]}
+    local size=${MODEL_SIZES[$model_key]}
     local filename=$(basename "$url")
     local filepath="$MODELS_DIR/$filename"
     
