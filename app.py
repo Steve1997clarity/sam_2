@@ -74,8 +74,8 @@ def init_sam2_model(model_type='small'):
         print(f"加载模型: {model_config['name']}")
         print(f"使用设备: {device}")
         
-        # 设置 Hydra 配置目录
-        config_dir = os.path.abspath("./sam2_repo/configs")
+        # 设置 Hydra 配置目录 - 指向包含 YAML 文件的具体目录
+        config_dir = os.path.abspath("./sam2_repo/configs/sam2.1")
         
         # 清除已有的 Hydra 实例
         if GlobalHydra().is_initialized():
