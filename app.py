@@ -27,23 +27,23 @@ current_model = 'small'  # 默认使用small模型
 # 模型配置
 MODELS_CONFIG = {
     'tiny': {
-        'checkpoint': 'models/sam2.1_hiera_tiny.pt',
-        'config': 'sam2_repo/configs/sam2.1/sam2.1_hiera_t.yaml',
+        'checkpoint': './models/sam2.1_hiera_tiny.pt',
+        'model_id': 'sam2.1_hiera_t',
         'name': 'Tiny (最快)'
     },
     'small': {
-        'checkpoint': 'models/sam2.1_hiera_small.pt',
-        'config': 'sam2_repo/configs/sam2.1/sam2.1_hiera_s.yaml',
+        'checkpoint': './models/sam2.1_hiera_small.pt',
+        'model_id': 'sam2.1_hiera_s',
         'name': 'Small (平衡)'
     },
     'base_plus': {
-        'checkpoint': 'models/sam2.1_hiera_base_plus.pt',
-        'config': 'sam2_repo/configs/sam2.1/sam2.1_hiera_b+.yaml',
+        'checkpoint': './models/sam2.1_hiera_base_plus.pt',
+        'model_id': 'sam2.1_hiera_b+',
         'name': 'Base Plus (高精度)'
     },
     'large': {
-        'checkpoint': 'models/sam2.1_hiera_large.pt',
-        'config': 'sam2_repo/configs/sam2.1/sam2.1_hiera_l.yaml',
+        'checkpoint': './models/sam2.1_hiera_large.pt',
+        'model_id': 'sam2.1_hiera_l',
         'name': 'Large (最高精度)'
     }
 }
@@ -61,23 +61,19 @@ def init_sam2_model(model_type='small'):
             
         model_config = MODELS_CONFIG[model_type]
         sam2_checkpoint = model_config['checkpoint']
-        model_cfg = model_config['config']
+        model_id = model_config['model_id']
         
         # 检查模型文件是否存在
         if not os.path.exists(sam2_checkpoint):
             print(f"模型文件不存在: {sam2_checkpoint}")
             return False
             
-        # 检查配置文件是否存在
-        if not os.path.exists(model_cfg):
-            print(f"配置文件不存在: {model_cfg}")
-            return False
-            
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"加载模型: {model_config['name']}")
         print(f"使用设备: {device}")
         
-        sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=device)
+        # 使用模型ID而不是配置文件路径
+        sam2_model = build_sam2(model_id, sam2_checkpoint, device=device)
         predictor = SAM2ImagePredictor(sam2_model)
         current_model = model_type
         print(f"SAM 2模型加载成功: {model_config['name']}")
@@ -452,15 +448,14 @@ def get_models():
         for model_type, config in MODELS_CONFIG.items():
             # 检查模型文件是否存在
             model_exists = os.path.exists(config['checkpoint'])
-            config_exists = os.path.exists(config['config'])
             
             models.append({
                 'type': model_type,
                 'name': config['name'],
-                'available': model_exists and config_exists,
+                'available': model_exists,
                 'current': model_type == current_model,
                 'checkpoint_path': config['checkpoint'],
-                'config_path': config['config']
+                'model_id': config['model_id']
             })
         
         return jsonify({
